@@ -1,0 +1,7 @@
+packages:
+  - "apps/website"
+  - "apps/customer-web"
+  - "apps/support-web"
+  - "apps/admin-web"
+  - "backend/*"
+  - "packages/*"

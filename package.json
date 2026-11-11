@@ -1,0 +1,17 @@
+{
+  "name": "otpprovider",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OTPProvider Commercial Launch V1 monorepo",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:test": "bash scripts/test-database.sh",
+    "bootstrap:admin": "node scripts/bootstrap-super-admin.mjs"
+  }
+}
