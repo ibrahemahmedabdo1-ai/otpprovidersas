@@ -1,14 +1,14 @@
 name: CI
- 
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
- 
+
 permissions:
   contents: read
- 
+
 jobs:
   package-tests:
     name: Package tests
@@ -33,7 +33,20 @@ jobs:
       - name: otp-engine
         working-directory: packages/otp-engine
         run: node --test "src/**/*.test.ts"
- 
+
+  backend-build:
+    name: Backend build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --no-frozen-lockfile
+      - name: Type-check, build and test API
+        run: pnpm -C backend/api test
+
   database-tests:
     name: Database migration and ledger tests
     runs-on: ubuntu-latest
@@ -60,4 +73,3 @@ jobs:
         run: node scripts/migrate.mjs
       - name: Ledger and constraint tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
- 
