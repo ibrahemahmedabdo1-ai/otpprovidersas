@@ -1,0 +1,65 @@
+
+name: CI
+ 
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+ 
+permissions:
+  contents: read
+ 
+jobs:
+  package-tests:
+    name: Package tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Link workspace packages
+        run: pnpm install --no-frozen-lockfile
+      - name: security
+        working-directory: packages/security
+        run: node --test "src/**/*.test.ts"
+      - name: permissions
+        working-directory: packages/permissions
+        run: node --test "src/**/*.test.ts"
+      - name: routing
+        working-directory: packages/routing
+        run: node --test "src/**/*.test.ts"
+      - name: otp-engine
+        working-directory: packages/otp-engine
+        run: node --test "src/**/*.test.ts"
+ 
+  database-tests:
+    name: Database migration and ledger tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: otp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL_DIRECT: postgresql://postgres:ci-only-password@localhost:5432/otp_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply migrations
+        run: node scripts/migrate.mjs
+      - name: Ledger and constraint tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
