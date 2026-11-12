@@ -24,6 +24,11 @@ test("lists every problem at once and never echoes secret values", () => {
 test("production requires explicit CORS origins; wildcard rejected", () => {
   assert.throws(() => loadConfig({ ...good(), NODE_ENV: "production" }), /CORS_ALLOWED_ORIGINS is required/);
   assert.throws(() => loadConfig({ ...good(), CORS_ALLOWED_ORIGINS: "*" }), /must not contain \*/);
-  assert.deepEqual(loadConfig({ ...good(), NODE_ENV: "production", CORS_ALLOWED_ORIGINS: "https://a.com, https://b.com" }).corsOrigins, ["https://a.com", "https://b.com"]);
+  assert.deepEqual(loadConfig({ ...good(), NODE_ENV: "production", APP_BASE_URL: "https://otpprovider.com", CORS_ALLOWED_ORIGINS: "https://a.com, https://b.com" }).corsOrigins, ["https://a.com", "https://b.com"]);
 });
 test("invalid port rejected", () => assert.throws(() => loadConfig({ ...good(), PORT: "99999" }), /PORT/));
+test("APP_BASE_URL defaults for dev, trailing slash trimmed, https enforced in production", () => {
+  assert.equal(loadConfig(good()).appBaseUrl, "http://localhost:3000");
+  assert.equal(loadConfig({ ...good(), APP_BASE_URL: "https://otpprovider.com/" }).appBaseUrl, "https://otpprovider.com");
+  assert.throws(() => loadConfig({ ...good(), NODE_ENV: "production", CORS_ALLOWED_ORIGINS: "https://a.com", APP_BASE_URL: "http://a.com" }), /https in production/);
+});

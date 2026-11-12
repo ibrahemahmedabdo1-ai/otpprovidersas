@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NextFunction, Request, Response } from "express";
 import { AppModule } from "./app.module";
 import { loadConfig } from "./config";
+import { SAFE_METHODS, isOriginAllowed } from "./common/origin";
 
 async function bootstrap() {
   const cfg = loadConfig(process.env);           // refuse to start with bad configuration
@@ -21,7 +22,16 @@ async function bootstrap() {
     next();
   });
 
-  app.enableCors({ origin: cfg.corsOrigins, credentials: true });
+  const prod = cfg.nodeEnv === "production";
+  // CSRF: state-changing requests from a browser must come from an allowed Origin.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!SAFE_METHODS.has(req.method) && !isOriginAllowed(req.header("origin"), cfg.corsOrigins, prod)) {
+      res.status(403).json({ error: "origin_not_allowed" });
+      return;
+    }
+    next();
+  });
+  app.enableCors({ origin: (o: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => cb(null, isOriginAllowed(o, cfg.corsOrigins, prod)), credentials: true });
   app.enableShutdownHooks();                      // graceful shutdown: closes the DB pool
   await app.listen(cfg.port);
   console.log(`API listening on :${cfg.port} (${cfg.nodeEnv})`);

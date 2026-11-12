@@ -3,6 +3,7 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   corsOrigins: string[];
+  appBaseUrl: string;
 }
 
 /** Fails fast with ALL problems listed. Never echoes secret values in errors. */
@@ -27,6 +28,10 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
   if (nodeEnv === "production" && corsOrigins.length === 0) errors.push("CORS_ALLOWED_ORIGINS is required in production");
   if (corsOrigins.includes("*")) errors.push("CORS_ALLOWED_ORIGINS must not contain *");
 
+  const appBaseUrl = (env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(appBaseUrl)) errors.push("APP_BASE_URL must be an http(s) URL");
+  if (nodeEnv === "production" && !appBaseUrl.startsWith("https://")) errors.push("APP_BASE_URL must be https in production");
+
   if (errors.length) throw new Error("Invalid configuration:\n - " + errors.join("\n - "));
-  return { nodeEnv, port, databaseUrl, corsOrigins };
+  return { nodeEnv, port, databaseUrl, corsOrigins, appBaseUrl };
 }

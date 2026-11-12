@@ -73,3 +73,5 @@ jobs:
         run: node scripts/migrate.mjs
       - name: Ledger and constraint tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
+      - name: Auth SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/auth/auth-sql.test.sql

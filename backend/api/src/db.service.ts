@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { loadConfig } from "./config";
 
 @Injectable()
@@ -12,6 +12,13 @@ export class DbService implements OnModuleDestroy {
   }
   async ping(): Promise<boolean> {
     try { await this.pool.query("SELECT 1"); return true; } catch { return false; }
+  }
+  /** Runs fn inside one transaction; rolls back on any error. */
+  async tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+    const c = await this.pool.connect();
+    try { await c.query("BEGIN"); const r = await fn(c); await c.query("COMMIT"); return r; }
+    catch (e) { await c.query("ROLLBACK").catch(() => undefined); throw e; }
+    finally { c.release(); }
   }
   async onModuleDestroy() { await this.pool.end(); }
 }
