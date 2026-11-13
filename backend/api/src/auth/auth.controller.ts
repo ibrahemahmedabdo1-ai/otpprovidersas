@@ -3,8 +3,9 @@ import type { Request, Response } from "express";
 import { RateLimiter } from "../common/rate-limit";
 import { CONFIG } from "../tokens";
 import type { AppConfig } from "../config";
-import { AuthService, SESSION_DAYS } from "./auth.service";
-import { AuthGuard, SESSION_COOKIE, type AuthedRequest } from "./auth.guard";
+import { AuthService } from "./auth.service";
+import { MfaService } from "./mfa.service";
+import { AllowPendingMfa, AuthGuard, SESSION_COOKIE, type AuthedRequest } from "./auth.guard";
 
 @Controller("v1/auth")
 export class AuthController {
@@ -12,7 +13,7 @@ export class AuthController {
   private loginIpLimit = new RateLimiter(20, 15 * 60_000);       // 20 attempts / 15 min / IP
   private loginEmailLimit = new RateLimiter(10, 15 * 60_000);    // 10 attempts / 15 min / email
   private verifyLimit = new RateLimiter(20, 15 * 60_000);
-  constructor(private readonly auth: AuthService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
+  constructor(private readonly auth: AuthService, private readonly mfa: MfaService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
   private limit(l: RateLimiter, key: string) {
     const r = l.take(key);
@@ -40,20 +41,20 @@ export class AuthController {
     this.limit(this.loginEmailLimit, email);
     const mobile = req.header("x-client-type") === "mobile";
     const r = await this.auth.login(body, req.ip, req.header("user-agent"), mobile);
-    res.cookie(SESSION_COOKIE, r.token, { httpOnly: true, secure: this.cfg.nodeEnv === "production", sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86_400_000 });
-    return { user: r.user, expiresAt: r.expires, ...(mobile ? { token: r.token } : {}) };   // bearer token only for native apps
+    res.cookie(SESSION_COOKIE, r.token, { httpOnly: true, secure: this.cfg.nodeEnv === "production", sameSite: "lax", path: "/", maxAge: Math.max(0, r.expires.getTime() - Date.now()) });
+    return { user: r.user, expiresAt: r.expires, ...(r.mfa ? { mfa: r.mfa } : {}), ...(mobile ? { token: r.token } : {}) };   // bearer token only for native apps
   }
 
-  @Post("logout") @HttpCode(204) @UseGuards(AuthGuard)
+  @Post("logout") @HttpCode(204) @AllowPendingMfa() @UseGuards(AuthGuard)
   async logout(@Req() req: AuthedRequest, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.auth!, req.ip);
     res.clearCookie(SESSION_COOKIE, { path: "/" });
   }
 
-  @Get("me") @UseGuards(AuthGuard)
+  @Get("me") @AllowPendingMfa() @UseGuards(AuthGuard)
   me(@Req() req: AuthedRequest) {
     const a = req.auth!;
-    return { id: a.userId, email: a.email, name: a.displayName, role: a.role, organizationId: a.organizationId, mfaVerified: a.mfaVerified };
+    return { id: a.userId, email: a.email, name: a.displayName, role: a.role, organizationId: a.organizationId, mfaVerified: a.mfaVerified, mfaPending: a.mfaPending };
   }
 
   @Get("sessions") @UseGuards(AuthGuard)
@@ -61,4 +62,13 @@ export class AuthController {
 
   @Delete("sessions/:id") @HttpCode(204) @UseGuards(AuthGuard)
   async revoke(@Param("id") id: string, @Req() req: AuthedRequest) { await this.auth.revokeSession(req.auth!, id, req.ip); }
+
+  @Post("mfa/setup") @HttpCode(200) @AllowPendingMfa() @UseGuards(AuthGuard)
+  mfaSetup(@Req() req: AuthedRequest) { return this.mfa.setup(req.auth!, req.ip); }
+
+  @Post("mfa/confirm") @HttpCode(200) @AllowPendingMfa() @UseGuards(AuthGuard)
+  mfaConfirm(@Body() body: unknown, @Req() req: AuthedRequest) { return this.mfa.confirm(req.auth!, body, req.ip); }
+
+  @Post("mfa/verify") @HttpCode(200) @AllowPendingMfa() @UseGuards(AuthGuard)
+  mfaVerify(@Body() body: unknown, @Req() req: AuthedRequest) { return this.mfa.verify(req.auth!, body, req.ip); }
 }

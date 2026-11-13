@@ -13,10 +13,13 @@ import { newToken, sha256 } from "./tokens";
 type Queryable = { query(text: string, values?: unknown[]): Promise<unknown> };
 
 export const SESSION_DAYS = 30;
+/** Staff: a password-only session lives 15 minutes (just long enough to finish MFA); after MFA it lives 12 hours. */
+export const MFA_PENDING_MINUTES = 15;
+export const STAFF_SESSION_HOURS = 12;
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
-export interface AuthContext { userId: string; sessionId: string; email: string; displayName: string; role: string; organizationId: string | null; mfaVerified: boolean }
+export interface AuthContext { userId: string; sessionId: string; email: string; displayName: string; role: string; organizationId: string | null; mfaVerified: boolean; mfaPending: boolean }
 
 function cleanIp(ip: string | undefined): string | null {
   const v = (ip ?? "").replace(/^::ffff:/, "");
@@ -103,31 +106,35 @@ export class AuthService {
     }
     if (u.status === "pending") throw new ForbiddenException({ error: "email_not_verified" });
     if (u.status !== "active") throw new ForbiddenException({ error: "account_disabled" });
-    // Staff and Super Admin require MFA, which is not implemented yet: refuse rather than create a weaker session.
-    if (u.role !== "customer") throw new ForbiddenException({ error: "mfa_setup_required" });
+    const f = await this.db.pool.query("SELECT EXISTS (SELECT 1 FROM mfa_factors WHERE user_id = $1::uuid AND type = 'totp' AND confirmed_at IS NOT NULL) AS enrolled", [u.id]);
+    const enrolled: boolean = f.rows[0].enrolled;
+    // Staff always need MFA; a customer who turned it on needs it too. Until it is completed the session is "pending"
+    // and the guard only lets it reach the MFA endpoints.
+    const mfaRequired = u.role !== "customer" || enrolled;
 
     const tok = newToken();
-    const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
+    const expires = new Date(Date.now() + (mfaRequired ? MFA_PENDING_MINUTES * 60_000 : SESSION_DAYS * 86_400_000));
     await this.db.tx(async (c) => {
       await c.query("UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = $1", [u.id]);
       await c.query("INSERT INTO sessions(user_id, token_hash, ip, user_agent, expires_at) VALUES ($1,$2,$3,$4,$5)", [u.id, tok.hash, addr, userAgent?.slice(0, 300) ?? null, expires]);
       await c.query("INSERT INTO login_history(user_id, email_attempted, success, ip, user_agent) VALUES ($1,$2,true,$3,$4)", [u.id, email.value, addr, userAgent?.slice(0, 300) ?? null]);
-      await this.audit(c, "auth.login", u.id, addr);
+      await this.audit(c, mfaRequired ? "auth.login_password_ok_mfa_pending" : "auth.login", u.id, addr);
     });
-    return { token: tok.token, expires, issueToken, user: { id: u.id as string, email: u.email as string, name: u.display_name as string, role: u.role as string } };
+    const mfa = mfaRequired ? { required: true, enrolled } : undefined;
+    return { token: tok.token, expires, issueToken, mfa, user: { id: u.id as string, email: u.email as string, name: u.display_name as string, role: u.role as string } };
   }
 
   async authenticate(token: string): Promise<AuthContext | null> {
     if (!isTokenShape(token)) return null;
     const r = await this.db.pool.query(
-      `SELECT s.id AS session_id, s.mfa_verified, u.id AS user_id, u.email, u.display_name, u.role,
+      `SELECT s.id AS session_id, s.mfa_verified, (u.role <> 'customer' OR EXISTS (SELECT 1 FROM mfa_factors f WHERE f.user_id = u.id AND f.type = 'totp' AND f.confirmed_at IS NOT NULL)) AS mfa_required, u.id AS user_id, u.email, u.display_name, u.role,
               (SELECT organization_id FROM memberships m WHERE m.user_id = u.id ORDER BY m.created_at LIMIT 1) AS organization_id
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status = 'active'`, [sha256(token)]);
     const row = r.rows[0];
     if (!row) return null;
     await this.db.pool.query("UPDATE sessions SET last_seen_at = now() WHERE id = $1 AND last_seen_at < now() - interval '1 minute'", [row.session_id]);
-    return { userId: row.user_id, sessionId: row.session_id, email: row.email, displayName: row.display_name, role: row.role, organizationId: row.organization_id ?? null, mfaVerified: row.mfa_verified };
+    return { userId: row.user_id, sessionId: row.session_id, email: row.email, displayName: row.display_name, role: row.role, organizationId: row.organization_id ?? null, mfaVerified: row.mfa_verified, mfaPending: row.mfa_required && !row.mfa_verified };
   }
 
   async logout(ctx: AuthContext, ip: string | undefined) {

@@ -81,3 +81,5 @@ jobs:
         run: bash tests/otp/concurrency.sh
       - name: Wallet deposit tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/deposits.test.sql
+      - name: Admin approvals and MFA SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/admin/admin-sql.test.sql
