@@ -15,9 +15,9 @@ SELECT id AS cust FROM users WHERE email='cust@x.co' \gset
 SELECT id AS adm  FROM users WHERE email='adm@x.co' \gset
 SELECT id AS root FROM users WHERE email='root@x.co' \gset
 INSERT INTO organizations(name,owner_user_id) VALUES ('O',:'cust');
-SELECT id AS org FROM organizations \gset
+SELECT id AS org FROM organizations WHERE owner_user_id=:'cust' \gset
 INSERT INTO wallets(organization_id) VALUES (:'org');
-SELECT id AS w FROM wallets \gset
+SELECT id AS w FROM wallets WHERE organization_id=:'org' \gset
 SELECT request_deposit(:'w', 10000000, 'wire ref 9') AS dep \gset
 
 -- admin_staff asks, super admin decides, then admin_staff approves
@@ -43,7 +43,7 @@ EXECUTE listdep('approved');
 
 -- MFA: replay compare-and-set and single-use recovery codes
 INSERT INTO mfa_factors(user_id,type,secret_encrypted,confirmed_at,last_step) VALUES (:'adm','totp','x',now(),100);
-SELECT id AS f FROM mfa_factors WHERE type='totp' \gset
+SELECT id AS f FROM mfa_factors WHERE type='totp' AND user_id=:'adm' \gset
 EXECUTE cas(:'f', 100);
 EXECUTE cas(:'f', 101) \gset c1_
 EXECUTE cas(:'f', 101);

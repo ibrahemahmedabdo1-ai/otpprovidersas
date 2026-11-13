@@ -30,8 +30,8 @@ export function totpAt(secretB32: string, step: number, digits = 6): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(step));
   const h = createHmac("sha1", base32Decode(secretB32)).update(counter).digest();
-  const off = h[h.length - 1] & 0x0f;
-  const bin = ((h[off] & 0x7f) << 24) | (h[off + 1] << 16) | (h[off + 2] << 8) | h[off + 3];
+  const off = h.readUInt8(h.length - 1) & 0x0f;
+  const bin = h.readUInt32BE(off) & 0x7fffffff;
   return String(bin % 10 ** digits).padStart(digits, "0");
 }
 
@@ -58,7 +58,7 @@ export const otpauthUri = (secret: string, email: string, issuer = "OTPProvider"
 /** 10 single-use recovery codes, e.g. "k3f9-82hd-q7xz". Shown once; only hashes are stored. */
 export function newRecoveryCodes(n = 10): string[] {
   const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  const pick = () => { const b = randomBytes(1)[0]; return b < 248 ? chars[b % chars.length] : null; };
+  const pick = () => { const b = randomBytes(1).readUInt8(0); return b < 248 ? chars.charAt(b % chars.length) : null; };
   return Array.from({ length: n }, () => {
     let s = ""; while (s.length < 12) { const c = pick(); if (c) s += c; }
     return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
