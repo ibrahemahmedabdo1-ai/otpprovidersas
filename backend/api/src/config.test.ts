@@ -32,3 +32,7 @@ test("APP_BASE_URL defaults for dev, trailing slash trimmed, https enforced in p
   assert.equal(loadConfig({ ...good(), APP_BASE_URL: "https://otpprovider.com/" }).appBaseUrl, "https://otpprovider.com");
   assert.throws(() => loadConfig({ ...good(), NODE_ENV: "production", CORS_ALLOWED_ORIGINS: "https://a.com", APP_BASE_URL: "http://a.com" }), /https in production/);
 });
+test("peppers and encryption key are exposed to the app as validated values", () => {
+  const c = loadConfig(good());
+  assert.equal(c.apiKeyPepper.length, 40); assert.equal(c.otpPepper.length, 40); assert.equal(c.encryptionKey.length, 32);
+});

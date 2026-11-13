@@ -4,6 +4,9 @@ export interface AppConfig {
   databaseUrl: string;
   corsOrigins: string[];
   appBaseUrl: string;
+  apiKeyPepper: string;
+  otpPepper: string;
+  encryptionKey: Buffer;
 }
 
 /** Fails fast with ALL problems listed. Never echoes secret values in errors. */
@@ -33,5 +36,9 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
   if (nodeEnv === "production" && !appBaseUrl.startsWith("https://")) errors.push("APP_BASE_URL must be https in production");
 
   if (errors.length) throw new Error("Invalid configuration:\n - " + errors.join("\n - "));
-  return { nodeEnv, port, databaseUrl, corsOrigins, appBaseUrl };
+  return {
+    nodeEnv, port, databaseUrl, corsOrigins, appBaseUrl,
+    apiKeyPepper: env.API_KEY_PEPPER ?? "", otpPepper: env.OTP_HASH_PEPPER ?? "",
+    encryptionKey: Buffer.from(env.ENCRYPTION_KEY ?? "", "base64"),
+  };
 }

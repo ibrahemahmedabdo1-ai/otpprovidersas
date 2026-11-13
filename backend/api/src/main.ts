@@ -15,6 +15,7 @@ async function bootstrap() {
   app.use((req: Request, res: Response, next: NextFunction) => {
     const incoming = req.header("x-correlation-id");
     const id = incoming && /^[\w-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+    req.headers["x-correlation-id"] = id;
     res.setHeader("x-correlation-id", id);
     res.setHeader("x-content-type-options", "nosniff");
     res.setHeader("referrer-policy", "no-referrer");
