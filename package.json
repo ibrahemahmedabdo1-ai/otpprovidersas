@@ -12,6 +12,7 @@
     "test": "pnpm -r test",
     "db:migrate": "node scripts/migrate.mjs",
     "db:test": "bash scripts/test-database.sh",
-    "bootstrap:admin": "node scripts/bootstrap-super-admin.mjs"
+    "dev": "pnpm -C backend/api dev",
+    "create-staff": "pnpm -C backend/api create-staff"
   }
 }
