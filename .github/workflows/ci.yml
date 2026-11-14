@@ -57,6 +57,11 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --no-frozen-lockfile
+      - name: TEMP inspect next versions
+        run: |
+          npm view next@15.5.4 deprecated || true
+          npm view next dist-tags --json || true
+          npm view next versions --json | tr -d ' \n' | grep -o '"15\.5\.[0-9]*"' | tail -5 || true
       - name: SEO and translation tests
         working-directory: apps/website
         run: node --test tests/seo.test.ts
