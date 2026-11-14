@@ -47,6 +47,26 @@ jobs:
       - name: Type-check, build and test API
         run: pnpm -C backend/api test
 
+  website:
+    name: Website typecheck, SEO tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --no-frozen-lockfile
+      - name: SEO and translation tests
+        working-directory: apps/website
+        run: node --test tests/seo.test.ts
+      - name: Type-check
+        run: pnpm -C apps/website typecheck
+      - name: Build
+        run: pnpm -C apps/website build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://otpprovider.com
+
   database-tests:
     name: Database migration and ledger tests
     runs-on: ubuntu-latest
