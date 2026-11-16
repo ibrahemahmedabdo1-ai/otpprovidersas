@@ -82,7 +82,7 @@ String errorText(ApiResult r) {
 String usd(dynamic v) {
   final s = '$v';
   final p = s.split('.');
-  final frac = ((p.length > 1 ? p[1] : '') + '00').substring(0, 2);
+  final frac = ('${p.length > 1 ? p[1] : ''}00').substring(0, 2);
   return '\$${p[0]}.$frac';
 }
 

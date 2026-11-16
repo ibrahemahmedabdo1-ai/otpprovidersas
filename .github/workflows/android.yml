@@ -38,9 +38,10 @@ jobs:
         run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'http://10.0.2.2:3001' }}
       - name: Build release APK (debug-signed unless a real keystore is wired in; NOT for store upload)
         run: flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'http://10.0.2.2:3001' }}
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK (the account-wide Actions storage quota can be full; the build still counts as passed)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: ${{ matrix.app }}-apk
-          path: |
-            apps/${{ matrix.app }}-mobile/build/app/outputs/flutter-apk/app-debug.apk
-            apps/${{ matrix.app }}-mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 3
+          path: apps/${{ matrix.app }}-mobile/build/app/outputs/flutter-apk/app-release.apk
