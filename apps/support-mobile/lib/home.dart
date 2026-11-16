@@ -94,7 +94,7 @@ class _TicketState extends State<TicketScreen> {
         if (d == null && err.isEmpty) const LinearProgressIndicator(),
         if (t != null) Wrap(spacing: 8, children: [
           OutlinedButton(onPressed: busy ? null : () => _post('assign', <String, dynamic>{}), child: const Text('Assign to me')),
-          for (final s in const ['open', 'pending', 'solved', 'closed']) OutlinedButton(onPressed: busy || t['status'] == s ? null : () => _post('status', {'status': s}), child: Text('Mark $s')),
+          for (final s in const ['open', 'pending_customer', 'escalated', 'resolved', 'closed']) OutlinedButton(onPressed: busy || t['status'] == s ? null : () => _post('status', {'status': s}), child: Text('Mark ${s.replaceAll('_', ' ')}')),
         ]),
         for (final m in msgs) Card(child: ListTile(title: Text('${(m as Map<String, dynamic>)['author']}${m['kind'] == 'internal' ? '  (internal note)' : ''}'), subtitle: Text('${m['body']}'))),
         if (t != null) ...[
