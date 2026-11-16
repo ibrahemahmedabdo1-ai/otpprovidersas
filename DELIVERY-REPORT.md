@@ -15,7 +15,9 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Live OTP sending | NOT IMPLEMENTED | live mode returns `live_mode_not_enabled` |
 | Resend email adapter, webhook receiver | NOT IMPLEMENTED | needs credentials |
 | WhatsApp linked-device adapter | NOT IMPLEMENTED | must stay disabled until compliance sign-off; delivery is never guaranteed |
-| Password reset, support ticketing API, webhooks management, scheduler/workers, OpenAPI file, admin endpoints for users/orgs/pricing/providers/audit | NOT IMPLEMENTED | UI for tickets exists and shows "not available" |
+| Support tickets API (customer create/reply, staff list/reply/internal note/assign/status; customers never see internal notes or staff e-mails) | NOT TESTED | compiles in CI; `scripts/smoke-tickets.mjs` written, not yet run |
+| Password reset, webhooks management, scheduler/workers, OpenAPI file, admin endpoints for users/orgs/pricing/providers/audit | NOT IMPLEMENTED | |
+| Customer-facing tickets screen (web/mobile) | NOT IMPLEMENTED | API only |
 
 ## Front ends
 | App | Status | Evidence |
