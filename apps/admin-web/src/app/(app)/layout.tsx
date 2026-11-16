@@ -1,0 +1,12 @@
+"use client";
+import type { ReactNode } from "react";
+import { Shell } from "../../components/Shell";
+import { useApp } from "../../components/Providers";
+
+export default function Layout({ children }: { children: ReactNode }) {
+  const { user } = useApp();
+  const nav: [string, string][] = [["/", "Overview"], ["/deposits", "Deposits"]];
+  if (user?.role === "super_admin") nav.push(["/approvals", "Approvals"]);
+  nav.push(["/planned", "Not built yet"]);
+  return <Shell nav={nav}>{children}</Shell>;
+}

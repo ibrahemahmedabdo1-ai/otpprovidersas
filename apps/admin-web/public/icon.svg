@@ -10,13 +10,10 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <path d="M136 190a132 132 0 0 1 240 0" fill="none" stroke="url(#ring)" stroke-width="22" stroke-linecap="round"/>
-  <circle cx="148" cy="270" r="26" fill="#FFFFFF"/>
-  <circle cx="226" cy="270" r="26" fill="#FFFFFF"/>
-  <circle cx="304" cy="270" r="26" fill="#FFFFFF"/>
-  <circle cx="382" cy="270" r="26" fill="#22D3EE"/>
-  <circle cx="392" cy="396" r="86" fill="#0A0F24"/>
-  <circle cx="392" cy="396" r="74" fill="#6366F1"/>
-  <path d="M392 346l40 14v30c0 24-17 41-40 50-23-9-40-26-40-50v-30z" fill="#FFFFFF"/>
-  <path d="M374 396l14 14 26-28" fill="none" stroke="#6366F1" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M136 206a132 132 0 0 1 240 0" fill="none" stroke="url(#ring)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="148" cy="296" r="30" fill="#FFFFFF"/>
+  <circle cx="226" cy="296" r="30" fill="#FFFFFF"/>
+  <circle cx="304" cy="296" r="30" fill="#FFFFFF"/>
+  <circle cx="382" cy="296" r="30" fill="#22D3EE"/>
+  <path d="M168 376h176" stroke="#6366F1" stroke-width="22" stroke-linecap="round"/>
 </svg>
