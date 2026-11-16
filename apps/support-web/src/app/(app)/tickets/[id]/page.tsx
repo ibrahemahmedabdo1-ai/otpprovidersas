@@ -44,7 +44,7 @@ export default function TicketPage() {
           <div className="pagehead"><h1>{d.ticket.subject}</h1><p>{d.ticket.requester} · {STATUS_LABEL[d.ticket.status] ?? d.ticket.status} · {d.ticket.priority} · {d.ticket.assignee ?? "Unassigned"}</p></div>
           <div className="row" style={{ marginBottom: "1rem" }}>
             <button className="btn ghost small" disabled={busy || d.ticket.assignee === user?.email} onClick={() => void post("assign", {})}>Assign to me</button>
-            {STATUSES.map((s) => <button key={s} className="btn ghost small" disabled={busy || d.ticket.status === s} onClick={() => void post("status", { status: s })}>Mark {STATUS_LABEL[s].toLowerCase()}</button>)}
+            {STATUSES.map((s) => <button key={s} className="btn ghost small" disabled={busy || d.ticket.status === s} onClick={() => void post("status", { status: s })}>Mark {(STATUS_LABEL[s] ?? s).toLowerCase()}</button>)}
           </div>
           {d.messages.map((m) => (
             <div key={m.id} className="card" style={m.kind === "internal" ? { borderStyle: "dashed" } : undefined}>
