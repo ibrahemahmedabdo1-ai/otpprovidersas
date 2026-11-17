@@ -28,12 +28,13 @@ export class ResendMailer extends Mailer {
   private log = new Logger("ResendMailer");
   constructor(private readonly apiKey: string, private readonly from: string) { super(); }
   private async send(to: string, subject: string, text: string): Promise<void> {
-    const res = await fetch("https://api.resend.com/emails", {
+    // Structural type: the global fetch typings differ between @types/node versions, so only name what we read.
+    const res = (await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({ from: this.from, to: [to], subject, text }),
       signal: AbortSignal.timeout(10_000),
-    });
+    })) as unknown as { ok: boolean; status: number };
     if (!res.ok) { this.log.error(`Resend rejected the request with status ${res.status}`); throw new Error("mail_send_failed"); }
   }
   sendVerification(to: string, link: string) {
