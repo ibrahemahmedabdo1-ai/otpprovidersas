@@ -9,6 +9,7 @@ import { DbService } from "./db.service";
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private log = new Logger("Scheduler");
   private timer: NodeJS.Timeout | undefined;
+  private ticks = 0;
   constructor(private readonly db: DbService) {}
 
   onModuleInit() {
@@ -26,6 +27,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
         const otp = await c.query("UPDATE otp_requests SET status = 'expired' WHERE status IN ('pending','sent') AND expires_at <= now()");
         const tok = await c.query("DELETE FROM email_tokens WHERE (used_at IS NOT NULL OR expires_at < now()) AND created_at < now() - interval '7 days'");
         const ses = await c.query("DELETE FROM sessions WHERE (revoked_at IS NOT NULL OR expires_at < now()) AND created_at < now() - interval '30 days'");
+        if (++this.ticks % 60 === 1) {   // hourly
+          const bad = await c.query("SELECT count(*)::int AS n FROM wallet_reconciliation()");
+          if ((bad.rows[0]?.n as number) > 0) this.log.error(`RECONCILIATION MISMATCH: ${bad.rows[0]?.n as number} wallet bucket(s) differ from the ledger. Open Admin > Reconciliation.`);
+        }
         if ((otp.rowCount ?? 0) + (tok.rowCount ?? 0) + (ses.rowCount ?? 0) > 0) this.log.log(`expired otp=${otp.rowCount ?? 0}, tokens removed=${tok.rowCount ?? 0}, sessions removed=${ses.rowCount ?? 0}`);
       });
     } catch (e) {

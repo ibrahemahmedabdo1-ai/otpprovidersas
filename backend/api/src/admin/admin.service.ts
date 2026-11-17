@@ -68,6 +68,14 @@ export class AdminService {
     return r.rows.map((e) => ({ id: String(e.id), action: e.action as string, actor: (e.actor as string | null) ?? null, subjectType: (e.subject_type as string | null) ?? null, subjectId: (e.subject_id as string | null) ?? null, ip: (e.ip as string | null) ?? null, createdAt: e.created_at }));
   }
 
+  /** Read-only: wallet buckets that do not equal the sum of their ledger entries. An empty list means the books agree. */
+  async reconciliation(ctx: AuthContext) {
+    this.requireMoneyStaff(ctx);
+    const r = await this.db.pool.query("SELECT wallet_id, bucket, wallet_micro_usd::text AS wallet, ledger_micro_usd::text AS ledger FROM wallet_reconciliation() LIMIT 200");
+    const w = await this.db.pool.query("SELECT count(*)::int AS n FROM wallets");
+    return { checkedWallets: w.rows[0]?.n as number, mismatches: r.rows.map((x) => ({ walletId: x.wallet_id as string, bucket: x.bucket as string, walletMicroUsd: x.wallet as string, ledgerMicroUsd: x.ledger as string })) };
+  }
+
   async listDeposits(ctx: AuthContext, statusRaw: unknown) {
     this.requireMoneyStaff(ctx);
     const status = typeof statusRaw === "string" && ["requested", "under_review", "approved", "rejected"].includes(statusRaw) ? statusRaw : null;

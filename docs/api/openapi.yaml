@@ -736,3 +736,12 @@ paths:
         "200": {description: OK}
         "401": {description: Not signed in}
         "403": {description: Role not allowed, or MFA not completed}
+  /v1/admin/reconciliation:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Wallet buckets that differ from the ledger sum (empty = books agree)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+        "403": {description: Role not allowed, or MFA not completed}

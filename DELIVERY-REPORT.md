@@ -6,7 +6,7 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 ## Backend (NestJS, Neon PostgreSQL)
 | Area | Status | Evidence |
 |---|---|---|
-| Schema + migrations (0001-0003) | PASS | Applied to a real Postgres 16 and to Neon; SQL suites in CI |
+| Schema + migrations (0001-0004) | PASS | Applied to a real Postgres 16 and to Neon; SQL suites in CI |
 | Ledger, wallet, deposits (approve/reject, immutability, charge-once) | PASS | CI SQL tests + local smoke 14/14 |
 | Auth: register, verify email, Argon2id login, sessions, lockout | PASS | local smoke 17/17 |
 | Staff MFA (TOTP + recovery codes), pending-MFA session guard | PASS | unit tests + local smoke 18/18 |
@@ -18,10 +18,11 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Support tickets API (customer create/reply, staff list/reply/internal note/assign/status; customers never see internal notes or staff e-mails) | NOT TESTED | compiles in CI; `scripts/smoke-tickets.mjs` written, not yet run |
 | Password reset (customers only; one-hour single-use token; all sessions ended) | NOT TESTED | compiles in CI; no smoke test yet |
 | Housekeeping scheduler (expire OTPs, purge old tokens/sessions; advisory-lock so one instance works) | NOT TESTED | compiles in CI |
-| OpenAPI (53 routes) + test that it matches the controllers | PASS | CI test |
+| OpenAPI (54 routes) + test that it matches the controllers | PASS | CI test |
 | Webhooks: management API, signed delivery worker (retries/backoff, SSRF re-check at delivery), `otp.verified` events | PARTIAL / NOT TESTED | signing, URL safety and backoff unit-tested (PASS); the worker and endpoints compile in CI but were never run. `otp.delivered`/`otp.failed` events need live sending. No UI yet |
 | Admin read-only users directory and audit log | NOT TESTED | compile in CI; UI in admin web |
-| Routing integration, reconciliation jobs, pricing/providers/legal-document admin | NOT IMPLEMENTED | |
+| Wallet-vs-ledger reconciliation (SQL function, hourly check, admin page) | PASS (SQL) / NOT TESTED (endpoint, page) | `tests/billing/reconciliation.test.sql` ran against Postgres 16 |
+| Routing integration, pricing/providers/legal-document admin | NOT IMPLEMENTED | |
 
 ## Front ends
 | App | Status | Evidence |
