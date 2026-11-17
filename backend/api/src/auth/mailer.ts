@@ -22,3 +22,24 @@ export class DisabledMailer extends Mailer {
     throw new Error("mailer_not_configured");
   }
 }
+
+/** Resend transactional mail. NOT TESTED against the live service (needs an API key and a verified sending domain). */
+export class ResendMailer extends Mailer {
+  private log = new Logger("ResendMailer");
+  constructor(private readonly apiKey: string, private readonly from: string) { super(); }
+  private async send(to: string, subject: string, text: string): Promise<void> {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ from: this.from, to: [to], subject, text }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) { this.log.error(`Resend rejected the request with status ${res.status}`); throw new Error("mail_send_failed"); }
+  }
+  sendVerification(to: string, link: string) {
+    return this.send(to, "Verify your email", `Confirm your email address to activate your OTPProvider account:\n\n${link}\n\nThe link works once and expires in 24 hours. If you did not sign up, ignore this message.`);
+  }
+  sendPasswordReset(to: string, link: string) {
+    return this.send(to, "Reset your password", `Use this link to choose a new password:\n\n${link}\n\nIt works once and expires in 1 hour. If you did not ask for it, ignore this message; your password is unchanged.`);
+  }
+}

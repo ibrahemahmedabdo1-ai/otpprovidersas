@@ -21,7 +21,7 @@ Set these as real environment variables on the host (never commit them). Generat
 The API refuses to start in production when a required value is missing or weak.
 Health checks: `GET /health/live`, `GET /health/ready`.
 Behind a proxy, make sure the platform forwards the client IP (rate limits and audit use it).
-**Email:** in production the mailer is `DisabledMailer` until a Resend adapter is added; registration and password-reset emails will NOT be sent. This is BLOCKED on a Resend account and a verified sending domain.
+**Email:** set `RESEND_API_KEY` and `EMAIL_FROM` (a verified Resend sending domain) to enable real email. Without them production uses `DisabledMailer` and registration/password-reset emails are NOT sent. The Resend adapter is written but NOT TESTED against the live service.
 
 ## 3. First Super Admin
 On a trusted machine with the production `DATABASE_URL` in the environment: `pnpm create-staff` (type the password in the terminal, never in chat or a ticket). Enroll MFA at first sign-in and store the recovery codes offline. Do not create a second Super Admin unless you mean to.
