@@ -657,3 +657,82 @@ paths:
         "403": {description: Role not allowed, or MFA not completed}
         "400": {description: Validation failed}
         "429": {description: Rate limited}
+  /v1/console/projects/{id}/webhooks:
+    get:
+      tags: ["Console"]
+      summary: "List webhook endpoints of a project (no secrets)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+    post:
+      tags: ["Console"]
+      summary: "Create a webhook endpoint (public https URL). The signing secret is shown once"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: {type: string, description: "https URL"}
+                events: {type: string, description: "optional list: otp.delivered, otp.failed, otp.verified"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in}
+  /v1/console/projects/{id}/webhooks/{hookId}:
+    delete:
+      tags: ["Console"]
+      summary: "Delete a webhook endpoint"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: hookId, in: path, required: true, schema: {type: string}}
+      responses:
+        "204": {description: OK}
+        "401": {description: Not signed in}
+  /v1/console/projects/{id}/webhooks/{hookId}/test:
+    post:
+      tags: ["Console"]
+      summary: "Queue a signed test event"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: hookId, in: path, required: true, schema: {type: string}}
+      responses:
+        "202": {description: OK}
+        "401": {description: Not signed in}
+  /v1/console/projects/{id}/webhooks/{hookId}/deliveries:
+    get:
+      tags: ["Console"]
+      summary: "Last 50 delivery attempts"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: hookId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+  /v1/admin/users:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Read-only account directory (?q= email or name)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+        "403": {description: Role not allowed, or MFA not completed}
+  /v1/admin/audit:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Newest audit events (?action=), no metadata"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+        "403": {description: Role not allowed, or MFA not completed}

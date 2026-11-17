@@ -45,6 +45,29 @@ export class AdminService {
   }
   private id(v: string) { if (!isUuid(v)) throw new NotFoundException({ error: "not_found" }); return v; }
 
+  /** Read-only directory of accounts. Never returns password hashes, secrets or MFA data. */
+  async listUsers(ctx: AuthContext, qRaw: unknown) {
+    this.requireMoneyStaff(ctx);
+    const q = typeof qRaw === "string" ? qRaw.trim().slice(0, 100) : "";
+    const like = q ? `%${q.replace(/[\\%_]/g, (m) => "\\" + m)}%` : null;
+    const r = await this.db.pool.query(
+      `SELECT u.id, u.email, u.display_name, u.role, u.status, u.created_at, o.name AS organization
+       FROM users u LEFT JOIN memberships m ON m.user_id = u.id AND m.role = 'owner' LEFT JOIN organizations o ON o.id = m.organization_id
+       WHERE ($1::text IS NULL OR u.email::text ILIKE $1::text ESCAPE '\\' OR u.display_name ILIKE $1::text ESCAPE '\\')
+       ORDER BY u.created_at DESC LIMIT 100`, [like]);
+    return r.rows.map((u) => ({ id: u.id as string, email: u.email as string, name: u.display_name as string, role: u.role as string, status: u.status as string, organization: (u.organization as string | null) ?? null, createdAt: u.created_at }));
+  }
+
+  /** Newest audit events first. Metadata is deliberately not returned here. */
+  async listAudit(ctx: AuthContext, actionRaw: unknown) {
+    this.requireMoneyStaff(ctx);
+    const action = typeof actionRaw === "string" && /^[a-z_.]{1,60}$/.test(actionRaw) ? actionRaw : null;
+    const r = await this.db.pool.query(
+      `SELECT e.id, e.action, e.subject_type, e.subject_id, e.ip::text AS ip, e.created_at, u.email AS actor
+       FROM audit_events e LEFT JOIN users u ON u.id = e.actor_id WHERE ($1::text IS NULL OR e.action = $1::text) ORDER BY e.id DESC LIMIT 100`, [action]);
+    return r.rows.map((e) => ({ id: String(e.id), action: e.action as string, actor: (e.actor as string | null) ?? null, subjectType: (e.subject_type as string | null) ?? null, subjectId: (e.subject_id as string | null) ?? null, ip: (e.ip as string | null) ?? null, createdAt: e.created_at }));
+  }
+
   async listDeposits(ctx: AuthContext, statusRaw: unknown) {
     this.requireMoneyStaff(ctx);
     const status = typeof statusRaw === "string" && ["requested", "under_review", "approved", "rejected"].includes(statusRaw) ? statusRaw : null;

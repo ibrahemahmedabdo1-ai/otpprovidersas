@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { enqueueWebhookEvent } from "../webhooks/webhooks.service";
 import { DbService } from "../db.service";
 import { CONFIG } from "../tokens";
 import type { AppConfig } from "../config";
@@ -83,7 +84,7 @@ export class OtpService {
     const id = b.id, code = b.code;
     const result = await this.db.tx(async (c) => {
       // Row lock: concurrent guesses are serialised, so attempt counting cannot be raced.
-      const r = await c.query("SELECT status, attempts, max_attempts, expires_at, code_hash FROM otp_requests WHERE id = $1 AND project_id = $2 FOR UPDATE", [id, k.projectId]);
+      const r = await c.query("SELECT status, attempts, max_attempts, expires_at, code_hash, channel, mode FROM otp_requests WHERE id = $1 AND project_id = $2 FOR UPDATE", [id, k.projectId]);
       const row = r.rows[0];
       if (!row) return { kind: "not_found" as const };
       const matches = safeEqualHex(hashOtp(this.cfg.otpPepper, id, code), row.code_hash);
@@ -92,6 +93,7 @@ export class OtpService {
       if (d.kind === "verified") {
         await c.query("UPDATE otp_requests SET status = 'verified', attempts = $2::int, verified_at = now() WHERE id = $1", [id, d.attempts]);
         await c.query("INSERT INTO otp_attempts(otp_request_id, success, ip) VALUES ($1,true,$2::inet)", [id, addr]);
+        await enqueueWebhookEvent(c, k.projectId, "otp.verified", { otpRequestId: id, channel: row.channel, mode: row.mode });
       } else if (d.kind === "invalid" || d.kind === "locked") {
         await c.query("UPDATE otp_requests SET attempts = $2::int, status = $3::text WHERE id = $1", [id, d.attempts, d.kind === "locked" ? "locked" : row.status]);
         await c.query("INSERT INTO otp_attempts(otp_request_id, success, ip) VALUES ($1,false,$2::inet)", [id, addr]);
