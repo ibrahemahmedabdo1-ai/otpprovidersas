@@ -9,9 +9,11 @@ const de: Dict = {
     sandboxBanner: "Nur Sandbox. Der Live-Versand ist noch nicht aktiviert. Nichts in dieser Konsole sendet echte Nachrichten oder belastet Ihr Guthaben.",
     loadError: "Das konnte nicht geladen werden.", mainNav: "Hauptnavigation", account: "Konto", brandHome: "OTPProvider Startseite",
   },
-  nav: { dashboard: "Übersicht", projects: "Projekte", wallet: "Guthaben", playground: "Sandbox-Testfeld", settings: "Einstellungen" },
+  nav: { dashboard: "Übersicht", projects: "Projekte", wallet: "Guthaben", playground: "Sandbox-Testfeld", settings: "Einstellungen", tickets: "Support" },
   themes: { system: "Wie mein Gerät", light: "Hell", dark: "Dunkel" },
   errors: {
+    too_many_open_tickets: "Sie haben bereits die maximale Anzahl offener Tickets. Warten Sie auf eine Antwort oder schließen Sie eines.",
+    ticket_closed: "Dieses Ticket ist geschlossen. Eröffnen Sie ein neues.",
     unknown: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     network: "Der Dienst ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     invalid_credentials: "E-Mail oder Passwort sind falsch.",
@@ -159,5 +161,8 @@ const de: Dict = {
     resend: "Erneut senden", resending: "Wird erneut gesendet", resent: "Ein neuer Sandbox-Code wurde erstellt. Der alte funktioniert nicht mehr.", cancelRequest: "Anfrage abbrechen", cancelling: "Wird abgebrochen", cancelled: "Anfrage abgebrochen.",
     needRequest: "Senden Sie zuerst einen Code oder fügen Sie eine Anfrage-ID ein.", statusSent: "Gesendet", statusVerified: "Bestätigt", statusCancelled: "Abgebrochen",
   },
+  forgot: { link: "Passwort vergessen?", title: "Passwort zurücksetzen", sub: "Geben Sie die E-Mail Ihres Kontos ein. Gehört sie zu einem Kundenkonto, senden wir einen Link, der 1 Stunde lang einmal funktioniert.", submit: "Link senden", submitting: "Wird gesendet", doneTitle: "Prüfen Sie Ihr Postfach", doneBody: "Gehört diese E-Mail zu einem Konto, wurde ein Link gesendet. Mitarbeiterkonten können ihr Passwort nicht per E-Mail zurücksetzen.", back: "Zurück zur Anmeldung" },
+  reset: { title: "Neues Passwort wählen", sub: "Mindestens 12 Zeichen. Sie werden auf allen Geräten abgemeldet.", newPassword: "Neues Passwort", submit: "Neues Passwort speichern", submitting: "Wird gespeichert", okTitle: "Passwort geändert", okBody: "Sie können sich jetzt mit dem neuen Passwort anmelden. Alle anderen Sitzungen wurden beendet.", failBody: "Dieser Link ist ungültig, abgelaufen oder bereits verwendet. Fordern Sie einen neuen an.", missing: "Diese Seite benötigt den Link aus der Reset-E-Mail." },
+  tickets: { title: "Support", sub: "Eröffnen Sie ein Ticket, unser Team antwortet hier. Senden Sie nie Passwörter, API-Schlüssel oder Einmalcodes.", newTitle: "Neues Ticket", subjectLabel: "Betreff", bodyLabel: "Wie können wir helfen?", bodyHint: "Bis zu 5000 Zeichen.", create: "Ticket eröffnen", creating: "Wird eröffnet", listTitle: "Ihre Tickets", empty: "Noch keine Tickets", emptyBody: "Eröffnete Tickets erscheinen hier.", colSubject: "Betreff", colStatus: "Status", colUpdated: "Aktualisiert", back: "Alle Tickets", you: "Sie", support: "Support", replyLabel: "Ihre Antwort", reply: "Antwort senden", replying: "Wird gesendet", closedNote: "Dieses Ticket ist geschlossen.", notFound: "Ticket nicht gefunden.", status: { open: "Offen", pending_customer: "Wartet auf Sie", escalated: "Eskaliert", resolved: "Gelöst", closed: "Geschlossen" } },
 };
 export default de;

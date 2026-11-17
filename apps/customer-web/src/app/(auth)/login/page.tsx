@@ -51,7 +51,8 @@ export default function Login() {
         </Field>
         <button className="btn" type="submit" disabled={busy || !email || !password}>{busy ? t.auth.login.submitting : t.auth.login.submit}</button>
       </form>
-      <p className="muted" style={{ marginTop: "1rem" }}>{t.auth.login.noAccount} <Link href="/register">{t.auth.login.create}</Link></p>
+      <p className="muted" style={{ marginTop: "1rem" }}><Link href="/forgot-password">{t.forgot.link}</Link></p>
+      <p className="muted" style={{ marginTop: ".4rem" }}>{t.auth.login.noAccount} <Link href="/register">{t.auth.login.create}</Link></p>
     </AuthFrame>
   );
 }

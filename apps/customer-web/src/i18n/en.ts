@@ -8,9 +8,11 @@ const en = {
     sandboxBanner: "Sandbox only. Live sending is not enabled yet. Nothing in this console sends a real message or charges your wallet.",
     loadError: "We could not load this.", mainNav: "Main navigation", account: "Account", brandHome: "OTPProvider home",
   },
-  nav: { dashboard: "Dashboard", projects: "Projects", wallet: "Wallet", playground: "Sandbox playground", settings: "Settings" },
+  nav: { dashboard: "Dashboard", projects: "Projects", wallet: "Wallet", playground: "Sandbox playground", settings: "Settings", tickets: "Support" },
   themes: { system: "Match my device", light: "Light", dark: "Dark" },
   errors: {
+    too_many_open_tickets: "You already have the maximum number of open tickets. Wait for a reply or close one.",
+    ticket_closed: "This ticket is closed. Open a new one.",
     unknown: "Something went wrong. Please try again.",
     network: "We could not reach the service. Check your connection and try again.",
     invalid_credentials: "The email or password is incorrect.",
@@ -158,6 +160,9 @@ const en = {
     resend: "Resend", resending: "Resending", resent: "A new sandbox code was created. The old one no longer works.", cancelRequest: "Cancel request", cancelling: "Cancelling", cancelled: "Request cancelled.",
     needRequest: "Send a code first, or paste a request ID.", statusSent: "Sent", statusVerified: "Verified", statusCancelled: "Cancelled",
   },
+  forgot: { link: "Forgot your password?", title: "Reset your password", sub: "Enter your account email. If it belongs to a customer account, we send a link that works once for 1 hour.", submit: "Send reset link", submitting: "Sending", doneTitle: "Check your email", doneBody: "If this email belongs to an account, a reset link has been sent. Staff accounts cannot reset passwords by email.", back: "Back to sign in" },
+  reset: { title: "Choose a new password", sub: "At least 12 characters. You will be signed out on every device.", newPassword: "New password", submit: "Set new password", submitting: "Saving", okTitle: "Password changed", okBody: "You can sign in with your new password now. All other sessions were ended.", failBody: "This link is invalid, expired or already used. Request a new one.", missing: "This page needs the link from the reset email." },
+  tickets: { title: "Support", sub: "Open a ticket and our team replies here. Never include passwords, API keys or one-time codes.", newTitle: "New ticket", subjectLabel: "Subject", bodyLabel: "How can we help?", bodyHint: "Up to 5000 characters.", create: "Open ticket", creating: "Opening", listTitle: "Your tickets", empty: "No tickets yet", emptyBody: "When you open a ticket it appears here.", colSubject: "Subject", colStatus: "Status", colUpdated: "Updated", back: "All tickets", you: "You", support: "Support", replyLabel: "Your reply", reply: "Send reply", replying: "Sending", closedNote: "This ticket is closed.", notFound: "Ticket not found.", status: { open: "Open", pending_customer: "Waiting for you", escalated: "Escalated", resolved: "Resolved", closed: "Closed" } },
 };
 export type Dict = typeof en;
 export default en;

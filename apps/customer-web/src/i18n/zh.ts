@@ -9,9 +9,11 @@ const zh: Dict = {
     sandboxBanner: "仅沙盒环境。正式发送尚未开启。此控制台中的任何操作都不会发送真实消息，也不会扣减您的钱包余额。",
     loadError: "无法加载此内容。", mainNav: "主导航", account: "账户", brandHome: "OTPProvider 首页",
   },
-  nav: { dashboard: "概览", projects: "项目", wallet: "钱包", playground: "沙盒试用", settings: "设置" },
+  nav: { dashboard: "概览", projects: "项目", wallet: "钱包", playground: "沙盒试用", settings: "设置", tickets: "支持" },
   themes: { system: "跟随设备", light: "浅色", dark: "深色" },
   errors: {
+    too_many_open_tickets: "您的未关闭工单已达上限。请等待回复或关闭一个。",
+    ticket_closed: "此工单已关闭。请新建一个。",
     unknown: "出了点问题，请重试。",
     network: "无法连接到服务。请检查网络后重试。",
     invalid_credentials: "邮箱或密码不正确。",
@@ -159,5 +161,8 @@ const zh: Dict = {
     resend: "重新发送", resending: "正在重发", resent: "已创建新的沙盒验证码，旧验证码已失效。", cancelRequest: "取消请求", cancelling: "正在取消", cancelled: "请求已取消。",
     needRequest: "请先发送验证码，或粘贴请求 ID。", statusSent: "已发送", statusVerified: "已验证", statusCancelled: "已取消",
   },
+  forgot: { link: "忘记密码？", title: "重置密码", sub: "输入账户邮箱。如果它属于客户账户，我们会发送一个 1 小时内有效且只能使用一次的链接。", submit: "发送重置链接", submitting: "正在发送", doneTitle: "请查收邮件", doneBody: "如果此邮箱属于某个账户，已发送重置链接。员工账户不能通过邮件重置密码。", back: "返回登录" },
+  reset: { title: "设置新密码", sub: "至少 12 个字符。您将在所有设备上退出登录。", newPassword: "新密码", submit: "保存新密码", submitting: "正在保存", okTitle: "密码已更改", okBody: "现在可以使用新密码登录。其他会话已全部结束。", failBody: "此链接无效、已过期或已被使用。请重新申请。", missing: "此页面需要重置邮件中的链接。" },
+  tickets: { title: "支持", sub: "提交工单，我们的团队会在此回复。切勿提供密码、API 密钥或一次性验证码。", newTitle: "新建工单", subjectLabel: "主题", bodyLabel: "我们能帮您什么？", bodyHint: "最多 5000 个字符。", create: "提交工单", creating: "正在提交", listTitle: "您的工单", empty: "还没有工单", emptyBody: "您提交的工单会显示在这里。", colSubject: "主题", colStatus: "状态", colUpdated: "更新时间", back: "所有工单", you: "您", support: "支持", replyLabel: "您的回复", reply: "发送回复", replying: "正在发送", closedNote: "此工单已关闭。", notFound: "未找到工单。", status: { open: "待处理", pending_customer: "等待您回复", escalated: "已升级", resolved: "已解决", closed: "已关闭" } },
 };
 export default zh;
