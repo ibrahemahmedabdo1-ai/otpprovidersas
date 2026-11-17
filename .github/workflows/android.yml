@@ -5,6 +5,9 @@ on:
     paths: ["apps/*-mobile/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: ${{ matrix.app }} APK
@@ -45,3 +48,10 @@ jobs:
           name: ${{ matrix.app }}-apk
           retention-days: 3
           path: apps/${{ matrix.app }}-mobile/build/app/outputs/flutter-apk/app-release.apk
+      - name: Publish APK to the "apk-latest" GitHub Release (not limited by the Actions artifact quota)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "${{ matrix.app }}-release.apk"
+          gh release view apk-latest >/dev/null 2>&1 || gh release create apk-latest --prerelease --title "Android APKs (sandbox, debug-signed)" --notes "Debug-signed builds for testing only. NOT for store upload. They call the API at the address set in the API_BASE_URL repository variable." || sleep 5
+          gh release upload apk-latest "${{ matrix.app }}-release.apk" --clobber
