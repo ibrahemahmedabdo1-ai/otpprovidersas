@@ -18,16 +18,17 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Support tickets API (customer create/reply, staff list/reply/internal note/assign/status; customers never see internal notes or staff e-mails) | NOT TESTED | compiles in CI; `scripts/smoke-tickets.mjs` written, not yet run |
 | Password reset (customers only; one-hour single-use token; all sessions ended) | NOT TESTED | compiles in CI; no smoke test yet |
 | Housekeeping scheduler (expire OTPs, purge old tokens/sessions; advisory-lock so one instance works) | NOT TESTED | compiles in CI |
-| OpenAPI (46 routes) + test that it matches the controllers | PASS | CI test |
-| Webhook management/delivery, delivery workers, routing integration, reconciliation jobs | NOT IMPLEMENTED | |
-| Admin endpoints for users/orgs/pricing/providers/audit/legal docs | NOT IMPLEMENTED | |
+| OpenAPI (53 routes) + test that it matches the controllers | PASS | CI test |
+| Webhooks: management API, signed delivery worker (retries/backoff, SSRF re-check at delivery), `otp.verified` events | PARTIAL / NOT TESTED | signing, URL safety and backoff unit-tested (PASS); the worker and endpoints compile in CI but were never run. `otp.delivered`/`otp.failed` events need live sending. No UI yet |
+| Admin read-only users directory and audit log | NOT TESTED | compile in CI; UI in admin web |
+| Routing integration, reconciliation jobs, pricing/providers/legal-document admin | NOT IMPLEMENTED | |
 
 ## Front ends
 | App | Status | Evidence |
 |---|---|---|
 | Website (48 static pages, 6 languages, SEO files) | PASS (build) / NOT TESTED (browser) | CI typecheck, SEO tests, `next build` |
 | Customer web (6 languages incl. RTL; incl. tickets and password reset) | PASS (build) / NOT TESTED (browser) | CI typecheck, i18n parity tests, build |
-| Admin web (English only; login + MFA, deposits, approvals) | PASS (build) / NOT TESTED (browser) | CI typecheck + build |
+| Admin web (English only; login + MFA, deposits, approvals, users, audit log) | PASS (build) / NOT TESTED (browser) | CI typecheck + build |
 | Support web (English only; tickets UI, no money or secrets) | PASS (build) / NOT TESTED (browser); tickets backend missing | CI typecheck + build |
 | Flutter customer / support / admin (English only) | See "Android" | `.github/workflows/android.yml` |
 
