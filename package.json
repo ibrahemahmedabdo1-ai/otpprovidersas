@@ -13,6 +13,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:test": "bash scripts/test-database.sh",
     "dev": "pnpm -C backend/api dev",
-    "create-staff": "pnpm -C backend/api create-staff"
+    "create-staff": "pnpm -C backend/api create-staff",
+    "seed-demo": "pnpm -C backend/api seed-demo"
   }
 }
