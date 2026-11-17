@@ -13,17 +13,20 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Admin deposits + Super Admin approval workflow | PASS | SQL suite + smoke |
 | Sandbox OTP API (send/verify/resend/cancel, test keys only) | PASS | local smoke 28/28 |
 | Live OTP sending | NOT IMPLEMENTED | live mode returns `live_mode_not_enabled` |
-| Resend email adapter, webhook receiver | NOT IMPLEMENTED | needs credentials |
-| WhatsApp linked-device adapter | NOT IMPLEMENTED | must stay disabled until compliance sign-off; delivery is never guaranteed |
+| Resend email adapter | NOT TESTED | written; needs `RESEND_API_KEY` + verified domain (BLOCKED on credentials). Resend webhook receiver NOT IMPLEMENTED |
+| WhatsApp linked-device adapter | NOT IMPLEMENTED | must stay disabled until compliance sign-off; delivery is never guaranteed (see runbook) |
 | Support tickets API (customer create/reply, staff list/reply/internal note/assign/status; customers never see internal notes or staff e-mails) | NOT TESTED | compiles in CI; `scripts/smoke-tickets.mjs` written, not yet run |
-| Password reset, webhooks management, scheduler/workers, OpenAPI file, admin endpoints for users/orgs/pricing/providers/audit | NOT IMPLEMENTED | |
-| Customer-facing tickets screen (web/mobile) | NOT IMPLEMENTED | API only |
+| Password reset (customers only; one-hour single-use token; all sessions ended) | NOT TESTED | compiles in CI; no smoke test yet |
+| Housekeeping scheduler (expire OTPs, purge old tokens/sessions; advisory-lock so one instance works) | NOT TESTED | compiles in CI |
+| OpenAPI (46 routes) + test that it matches the controllers | PASS | CI test |
+| Webhook management/delivery, delivery workers, routing integration, reconciliation jobs | NOT IMPLEMENTED | |
+| Admin endpoints for users/orgs/pricing/providers/audit/legal docs | NOT IMPLEMENTED | |
 
 ## Front ends
 | App | Status | Evidence |
 |---|---|---|
 | Website (48 static pages, 6 languages, SEO files) | PASS (build) / NOT TESTED (browser) | CI typecheck, SEO tests, `next build` |
-| Customer web (6 languages incl. RTL) | PASS (build) / NOT TESTED (browser) | CI typecheck, i18n parity tests, build |
+| Customer web (6 languages incl. RTL; incl. tickets and password reset) | PASS (build) / NOT TESTED (browser) | CI typecheck, i18n parity tests, build |
 | Admin web (English only; login + MFA, deposits, approvals) | PASS (build) / NOT TESTED (browser) | CI typecheck + build |
 | Support web (English only; tickets UI, no money or secrets) | PASS (build) / NOT TESTED (browser); tickets backend missing | CI typecheck + build |
 | Flutter customer / support / admin (English only) | See "Android" | `.github/workflows/android.yml` |
@@ -36,5 +39,6 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 - Staff consoles and mobile apps are English only; customer web and website have 6 languages.
 - No deployment done (Vercel/Neon production config is documented only where noted in docs).
 - Rate limits are in-memory; production needs shared storage.
-- Legal documents are templates and need a lawyer.
+- Legal documents (`docs/legal/TEMPLATES.md`) are unreviewed templates and need a lawyer.
+- Deployment, runbook and security notes exist in `docs/` but nothing has been deployed.
 - Money: wallet is credited only by an admin after independent receipt verification; support cannot approve or change balances (enforced in DB functions and tested).
