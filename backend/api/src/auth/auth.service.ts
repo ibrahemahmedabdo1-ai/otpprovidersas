@@ -68,6 +68,46 @@ export class AuthService {
     }
   }
 
+
+  /** Always answers the same way. Only active customer accounts get a link: staff passwords are never reset by e-mail. */
+  async forgotPassword(body: unknown, ip: string | undefined): Promise<void> {
+    const email = parseEmail((body as { email?: unknown } | null)?.email);
+    if (!email.ok) return;
+    const tok = newToken();
+    const target = await this.db.tx(async (c) => {
+      const u = await c.query("SELECT id FROM users WHERE email = $1 AND role = 'customer' AND status = 'active'", [email.value]);
+      const userId: string | undefined = u.rows[0]?.id;
+      if (!userId) return false;
+      await c.query("UPDATE email_tokens SET used_at = now() WHERE user_id = $1 AND purpose = 'reset_password' AND used_at IS NULL", [userId]);
+      await c.query("INSERT INTO email_tokens(user_id, purpose, token_hash, expires_at) VALUES ($1,'reset_password',$2, now() + interval '1 hour')", [userId, tok.hash]);
+      await this.audit(c, "auth.password_reset_requested", userId, cleanIp(ip));
+      return true;
+    });
+    if (target) {
+      try { await this.mailer.sendPasswordReset(email.value, `${this.cfg.appBaseUrl}/reset-password?token=${tok.token}`); }
+      catch (e) { this.log.error(`password reset mail failed: ${e instanceof Error ? e.message : "unknown"}`); }
+    }
+  }
+
+  /** One-time token. Success signs the account out everywhere and clears any lockout. */
+  async resetPassword(body: unknown, ip: string | undefined): Promise<void> {
+    const b = (body ?? {}) as Record<string, unknown>;
+    if (!isTokenShape(b.token)) throw new BadRequestException({ error: "invalid_or_expired_token" });
+    const peek = await this.db.pool.query("SELECT u.email FROM email_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = $1 AND t.purpose = 'reset_password' AND t.used_at IS NULL AND t.expires_at > now()", [sha256(b.token)]);
+    if (!peek.rows[0]) throw new BadRequestException({ error: "invalid_or_expired_token" });
+    const password = parsePassword(b.password, peek.rows[0].email as string);
+    if (!password.ok) throw new BadRequestException({ error: "validation_failed", fields: { password: password.error } });
+    const passwordHash = await hashPassword(password.value);
+    await this.db.tx(async (c) => {
+      const t = await c.query("UPDATE email_tokens SET used_at = now() WHERE token_hash = $1 AND purpose = 'reset_password' AND used_at IS NULL AND expires_at > now() RETURNING user_id", [sha256(b.token as string)]);
+      const userId: string | undefined = t.rows[0]?.user_id;
+      if (!userId) throw new BadRequestException({ error: "invalid_or_expired_token" });
+      await c.query("UPDATE users SET password_hash = $2, failed_login_count = 0, locked_until = NULL WHERE id = $1", [userId, passwordHash]);
+      await c.query("UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL", [userId]);
+      await this.audit(c, "auth.password_reset", userId, cleanIp(ip));
+    });
+  }
+
   async verifyEmail(token: unknown): Promise<void> {
     if (!isTokenShape(token)) throw new BadRequestException({ error: "invalid_or_expired_token" });
     await this.db.tx(async (c) => {
