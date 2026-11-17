@@ -1,0 +1,659 @@
+openapi: 3.0.3
+info:
+  title: OTPProvider API
+  version: 1.0.0-sandbox
+  description: |
+    Sandbox-only. Live sending is not enabled; test keys start with otp_test_. Errors are {"error": "<code>", ...}.
+    Browser clients use the httpOnly cookie otp_session (same origin). Mobile clients send header X-Client-Type: mobile and use the returned token as a Bearer token.
+    Staff sessions are MFA-pending until /v1/auth/mfa/verify or /confirm succeeds; protected routes then answer 403 mfa_required.
+servers:
+  - url: http://localhost:3001
+components:
+  securitySchemes:
+    sessionCookie: {type: apiKey, in: cookie, name: otp_session}
+    bearerSession: {type: http, scheme: bearer, description: "Session token (mobile)"}
+    apiKey: {type: http, scheme: bearer, description: "Developer API key, otp_test_..."}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+paths:
+  /health/live:
+    get:
+      tags: ["Health"]
+      summary: "Liveness probe"
+      security: []
+      responses:
+        "200": {description: OK}
+        "429": {description: Rate limited}
+  /health/ready:
+    get:
+      tags: ["Health"]
+      summary: "Readiness probe (checks the database)"
+      security: []
+      responses:
+        "200": {description: OK}
+        "429": {description: Rate limited}
+  /v1/auth/register:
+    post:
+      tags: ["Auth"]
+      summary: "Create a customer account (always answers 202, never reveals whether the email exists)"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string, description: "string"}
+                password: {type: string, description: "string, 12-128 chars"}
+                name: {type: string, description: "string"}
+                locale: {type: string, description: "en|ar|ru|es|de|zh"}
+      responses:
+        "202": {description: OK}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/verify-email:
+    post:
+      tags: ["Auth"]
+      summary: "Confirm an email with the one-time token from the email"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: {type: string, description: "string"}
+      responses:
+        "200": {description: OK}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/password/forgot:
+    post:
+      tags: ["Auth"]
+      summary: "Request a password reset link (customers only; always 202)"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string, description: "string"}
+      responses:
+        "202": {description: OK}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/password/reset:
+    post:
+      tags: ["Auth"]
+      summary: "Set a new password with a one-time token; ends all sessions"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: {type: string, description: "string"}
+                password: {type: string, description: "string, 12-128 chars"}
+      responses:
+        "200": {description: OK}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/login:
+    post:
+      tags: ["Auth"]
+      summary: "Sign in. Staff receive an MFA-pending session until /mfa/verify (or /mfa/confirm) succeeds"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string, description: "string"}
+                password: {type: string, description: "string"}
+      responses:
+        "200": {description: OK}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/logout:
+    post:
+      tags: ["Auth"]
+      summary: "End the current session"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "204": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {description: Rate limited}
+  /v1/auth/me:
+    get:
+      tags: ["Auth"]
+      summary: "Current user and MFA state"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/auth/sessions:
+    get:
+      tags: ["Auth"]
+      summary: "List own active sessions"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/auth/sessions/{id}:
+    delete:
+      tags: ["Auth"]
+      summary: "Revoke one of own sessions"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/auth/mfa/setup:
+    post:
+      tags: ["MFA"]
+      summary: "Start TOTP enrolment; returns the secret and otpauth URI"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {description: Rate limited}
+  /v1/auth/mfa/confirm:
+    post:
+      tags: ["MFA"]
+      summary: "Confirm enrolment with a TOTP code; returns 10 single-use recovery codes once"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: {type: string, description: "6 digits"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/auth/mfa/verify:
+    post:
+      tags: ["MFA"]
+      summary: "Complete sign-in with a TOTP code or a recovery code"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: {type: string, description: "6 digits (or) recoveryCode: string"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/otp/send:
+    post:
+      tags: ["OTP (developer API)"]
+      summary: "Send a sandbox OTP. Test keys only; live mode returns live_mode_not_enabled"
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel: {type: string, description: "email|whatsapp"}
+                to: {type: string, description: "email or E.164 number"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/otp/verify:
+    post:
+      tags: ["OTP (developer API)"]
+      summary: "Verify a code"
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, description: "string"}
+                code: {type: string, description: "4-8 digits"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/otp/resend:
+    post:
+      tags: ["OTP (developer API)"]
+      summary: "Issue a new code for an open request"
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, description: "string"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/otp/cancel:
+    post:
+      tags: ["OTP (developer API)"]
+      summary: "Cancel an open request"
+      security: [{apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: {type: string, description: "string"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/otp/{id}:
+    get:
+      tags: ["OTP (developer API)"]
+      summary: "Read the status of a request"
+      security: [{apiKey: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/balance:
+    get:
+      tags: ["OTP (developer API)"]
+      summary: "Wallet balances for the key's organization"
+      security: [{apiKey: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/usage:
+    get:
+      tags: ["OTP (developer API)"]
+      summary: "Usage for the last 30 days"
+      security: [{apiKey: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/projects:
+    get:
+      tags: ["Console"]
+      summary: "List projects"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    post:
+      tags: ["Console"]
+      summary: "Create a project"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string, description: "string, 1-60 chars"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/console/projects/{id}/keys:
+    get:
+      tags: ["Console"]
+      summary: "List API keys of a project (prefixes only)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    post:
+      tags: ["Console"]
+      summary: "Create a test API key; the full key is shown once"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: {type: string, description: "test"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/console/projects/{id}/keys/{keyId}:
+    delete:
+      tags: ["Console"]
+      summary: "Revoke an API key"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: keyId, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/wallet:
+    get:
+      tags: ["Console"]
+      summary: "Wallet: paid, promotional, reserved, pending, available"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/wallet/transactions:
+    get:
+      tags: ["Console"]
+      summary: "Ledger entries, newest first; page with ?before="
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/wallet/deposits:
+    get:
+      tags: ["Console"]
+      summary: "Own top-up requests"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    post:
+      tags: ["Console"]
+      summary: "Request a top-up. Does not move money; an admin credits it after verifying the receipt"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amountUsd: {type: string, description: "decimal string, max 2 places"}
+                note: {type: string, description: "optional string, max 500"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/console/tickets:
+    get:
+      tags: ["Console"]
+      summary: "Own organization's tickets"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    post:
+      tags: ["Console"]
+      summary: "Open a ticket"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject: {type: string, description: "string, 3-150"}
+                body: {type: string, description: "string, 1-5000"}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/console/tickets/{id}:
+    get:
+      tags: ["Console"]
+      summary: "Ticket with public messages only"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/tickets/{id}/reply:
+    post:
+      tags: ["Console"]
+      summary: "Reply to a ticket (reopens it unless closed)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: {type: string, description: "string, 1-5000"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/support/tickets:
+    get:
+      tags: ["Staff: support"]
+      summary: "List tickets (?status=open|pending_customer|escalated|resolved|closed)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+  /v1/support/tickets/{id}:
+    get:
+      tags: ["Staff: support"]
+      summary: "Ticket with internal notes"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+  /v1/support/tickets/{id}/reply:
+    post:
+      tags: ["Staff: support"]
+      summary: "Public reply"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: {type: string, description: "string, 1-5000"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/support/tickets/{id}/notes:
+    post:
+      tags: ["Staff: support"]
+      summary: "Internal note (never visible to customers)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: {type: string, description: "string, 1-5000"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/support/tickets/{id}/assign:
+    post:
+      tags: ["Staff: support"]
+      summary: "Assign the ticket to the caller"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "429": {description: Rate limited}
+  /v1/support/tickets/{id}/status:
+    post:
+      tags: ["Staff: support"]
+      summary: "Change status"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: {type: string, description: "open|pending_customer|escalated|resolved|closed"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/admin/deposits:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List deposits (?status=)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+  /v1/admin/deposits/{id}/approve:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Approve and credit. Needs a receipt note; admin_staff also needs an approved Super Admin approval"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receiptNote: {type: string, description: "string, 5-500"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/admin/deposits/{id}/reject:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Reject a deposit"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: {type: string, description: "string, 5-500"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
+  /v1/admin/deposits/{id}/request-approval:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Admin asks a Super Admin to approve this deposit"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "201": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "429": {description: Rate limited}
+  /v1/admin/approvals:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Pending approval requests (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+  /v1/admin/approvals/{id}/decide:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Decide an approval request; cannot decide own request (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: {type: string, description: "approved|rejected"}
+                note: {type: string, description: "string, 5-500"}
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Role not allowed, or MFA not completed}
+        "400": {description: Validation failed}
+        "429": {description: Rate limited}
