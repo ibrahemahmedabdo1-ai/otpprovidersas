@@ -61,7 +61,8 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
   async create(ctx: AuthContext, projectId: string, body: unknown, ip: string | undefined) {
     await this.own(ctx, projectId);
     const b = (body ?? {}) as Record<string, unknown>;
-    if (typeof b.url !== "string" || !isSafeWebhookUrl(b.url.trim())) throw new BadRequestException({ error: "validation_failed", fields: { url: "A public https URL is required." } });
+    const url = typeof b.url === "string" ? b.url.trim() : "";
+    if (!isSafeWebhookUrl(url)) throw new BadRequestException({ error: "validation_failed", fields: { url: "A public https URL is required." } });
     let events: string[] = [...WEBHOOK_EVENTS];
     if (b.events !== undefined) {
       if (!Array.isArray(b.events) || b.events.length === 0 || !b.events.every((e) => typeof e === "string" && (WEBHOOK_EVENTS as readonly string[]).includes(e)))
@@ -73,9 +74,9 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
       await c.query("SELECT pg_advisory_xact_lock(hashtext($1::text))", [`webhooks:${projectId}`]);
       const n = await c.query("SELECT count(*)::int AS n FROM webhooks WHERE project_id = $1::uuid", [projectId]);
       if ((n.rows[0]?.n as number) >= MAX_PER_PROJECT) throw new ConflictException({ error: "webhook_limit_reached" });
-      const r = await c.query("INSERT INTO webhooks(project_id, url, secret_encrypted, events) VALUES ($1::uuid,$2::text,$3::text,$4::text[]) RETURNING id", [projectId, b.url.toString().trim(), encryptString(secret, this.cfg.encryptionKey), events]);
+      const r = await c.query("INSERT INTO webhooks(project_id, url, secret_encrypted, events) VALUES ($1::uuid,$2::text,$3::text,$4::text[]) RETURNING id", [projectId, url, encryptString(secret, this.cfg.encryptionKey), events]);
       await writeAudit(c, { actorId: ctx.userId, action: "webhook.created", subjectType: "webhook", subjectId: r.rows[0].id as string, ip: cleanIp(ip) });
-      return { id: r.rows[0].id as string, url: b.url.toString().trim(), events, secret };   // the secret is shown once
+      return { id: r.rows[0].id as string, url: url, events, secret };   // the secret is shown once
     });
   }
 
