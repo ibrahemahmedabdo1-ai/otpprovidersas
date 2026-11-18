@@ -35,7 +35,7 @@ const de: Dict = {
     h1: "Zwei Kanäle, ehrlich beschrieben",
     intro: "OTPProvider unterstützt genau zwei Dienste.",
     email: { t: "Email-OTP", d: "Codes über eine verifizierte Absenderdomain, Zustellereignisse fließen in die Abrechnung ein.", points: ["Zustell-, Bounce- und Beschwerdeereignisse werden erfasst", "Die Sperrliste schützt Ihre Absenderreputation", "Abrechnung nur bei bestätigter Zustellung"] },
-    wa: { t: "WhatsApp-OTP", d: "Zustellung über ein verknüpftes WhatsApp-Gerät (QR-Kopplung). Der Kanal ist von jedem künftigen offiziellen Anbieter getrennt.", points: ["Standardmäßig für jedes Projekt deaktiviert", "Keine Zustellgarantie", "Unterliegt WhatsApp-Limits und Kontobeschränkungen"], warn: "Der Modus mit verknüpftem Gerät ist kein offizieller kommerzieller Kanal. WhatsApp kann die verknüpfte Nummer jederzeit einschränken oder sperren. Verlassen Sie sich nicht darauf in kritischen Abläufen." },
+    wa: { t: "WhatsApp-OTP", d: "Zustellung über ein verknüpftes WhatsApp-Gerät (QR-Kopplung). Der Kanal ist von jedem künftigen offiziellen Anbieter getrennt.", points: ["Standardmäßig für jedes Projekt deaktiviert", "Keine Zustellgarantie", "Unterliegt WhatsApp-Limits und Kontobeschränkungen"], warn: "Die Zustellung über WhatsApp hängt von den Richtlinien und Limits von WhatsApp ab. Nutzen Sie E-Mail-OTP als Hauptkanal für kritische Abläufe." },
   },
   developers: {
     h1: "Schnellstart", intro: "Erstellen Sie in der Konsole ein Projekt und dann einen Testschlüssel. Testschlüssel beginnen mit otp_test_ und senden nie echte Nachrichten.",

@@ -5,6 +5,8 @@ import { getDict } from "../../../i18n";
 import { Crumbs, Shell } from "../../../components/Shell";
 import { JsonLd } from "../../../components/JsonLd";
 import { breadcrumbLd, pageMetadata } from "../../../lib/seo";
+import { getLanding } from "../../../i18n/landing";
+import { Plans } from "../../../components/landing";
 
 type P = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: P): Promise<Metadata> {
@@ -18,6 +20,7 @@ export default async function Pricing({ params }: P) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const t = getDict(locale);
+  const l = getLanding(locale);
   const crumbs = [{ name: t.nav.pricing, path: "/pricing" }];
   return (
     <Shell locale={locale} t={t} path="/pricing">
@@ -28,6 +31,7 @@ export default async function Pricing({ params }: P) {
         <p className="lead">{t.pricing.intro}</p>
         <ul className="ticks">{t.pricing.points.map((p) => <li key={p}>{p}</li>)}</ul>
       </div>
+      <Plans locale={locale} l={l} />
     </Shell>
   );
 }

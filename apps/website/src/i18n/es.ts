@@ -35,7 +35,7 @@ const es: Dict = {
     h1: "Dos canales, descritos con honestidad",
     intro: "OTPProvider admite exactamente dos servicios.",
     email: { t: "Email OTP", d: "Códigos entregados mediante un dominio de envío verificado, con eventos de entrega que alimentan la facturación.", points: ["Se registran eventos de entrega, rebote y queja", "La lista de supresión protege la reputación del remitente", "Se cobra solo con entrega confirmada"] },
-    wa: { t: "WhatsApp OTP", d: "Entregado mediante un dispositivo de WhatsApp vinculado (emparejamiento por QR). Está aislado de cualquier futuro proveedor oficial.", points: ["Desactivado por defecto en cada proyecto", "Sin garantía de entrega", "Sujeto a los límites de WhatsApp y restricciones de la cuenta"], warn: "El modo de dispositivo vinculado no es un canal comercial oficial. WhatsApp puede limitar o bloquear el número vinculado en cualquier momento. No dependas de él en flujos críticos." },
+    wa: { t: "WhatsApp OTP", d: "Entregado mediante un dispositivo de WhatsApp vinculado (emparejamiento por QR). Está aislado de cualquier futuro proveedor oficial.", points: ["Desactivado por defecto en cada proyecto", "Sin garantía de entrega", "Sujeto a los límites de WhatsApp y restricciones de la cuenta"], warn: "La entrega por WhatsApp depende de las políticas y límites de WhatsApp. Usa el OTP por correo como canal principal en flujos críticos." },
   },
   developers: {
     h1: "Guía rápida", intro: "Crea un proyecto en la consola y luego una clave de prueba. Las claves de prueba empiezan por otp_test_ y nunca envían mensajes reales.",

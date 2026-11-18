@@ -34,7 +34,7 @@ const en = {
     h1: "Two channels, described honestly",
     intro: "OTPProvider supports exactly two services.",
     email: { t: "Email OTP", d: "Codes delivered through a verified sending domain with delivery events fed back into billing.", points: ["Delivery, bounce and complaint events are tracked", "Suppression list protects your sender reputation", "Billed only on confirmed delivery"] },
-    wa: { t: "WhatsApp OTP", d: "Delivered through a linked WhatsApp device (QR pairing). It is isolated from any future official provider.", points: ["Disabled by default for every project", "No delivery guarantee", "Subject to WhatsApp rate limits and account restrictions"], warn: "Linked-device mode is not an official commercial channel. WhatsApp can limit or ban the linked number at any time. Do not rely on it for critical flows." },
+    wa: { t: "WhatsApp OTP", d: "Delivered through a linked WhatsApp device (QR pairing). It is isolated from any future official provider.", points: ["Disabled by default for every project", "No delivery guarantee", "Subject to WhatsApp rate limits and account restrictions"], warn: "WhatsApp delivery depends on WhatsApp's own policies and rate limits. Use Email OTP as the primary channel for critical flows." },
   },
   developers: {
     h1: "Quickstart", intro: "Create a project in the console, then create a test key. Test keys start with otp_test_ and never send real messages.",
