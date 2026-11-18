@@ -5,7 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'app_config.dart';
 
-const apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:3001');
+const apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'https://otpprovider-launch-api.vercel.app');
 
 class ApiResult {
   final int status;
