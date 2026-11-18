@@ -14,5 +14,16 @@ export class CatalogController {
   @Post("prices/:id/approve") @HttpCode(200) approvePrice(@Param("id") id: string, @Req() r: AuthedRequest) { return this.s.approvePrice(r.auth!, id, r.ip ?? null); }
   @Get("providers") providers(@Req() r: AuthedRequest) { return this.s.providers(r.auth!); }
   @Post("providers/:id/set") @HttpCode(200) setProvider(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setProvider(r.auth!, id, b, r.ip ?? null); }
+  @Get("company") company(@Req() r: AuthedRequest) { return this.s.company(r.auth!); }
+  @Post("company") @HttpCode(200) setCompany(@Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setCompany(r.auth!, b, r.ip ?? null); }
+  @Get("tickets") tickets(@Req() r: AuthedRequest) { return this.s.tickets(r.auth!); }
+  @Get("webhook-deliveries") deliveries(@Req() r: AuthedRequest) { return this.s.deliveries(r.auth!); }
   @Post("users/:id/status") @HttpCode(200) userStatus(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setUserStatus(r.auth!, id, b, r.ip ?? null); }
+}
+
+/** Unauthenticated: only the company details an admin chose to publish. */
+@Controller("v1/public")
+export class PublicController {
+  constructor(private readonly s: CatalogService) {}
+  @Get("company") company() { return this.s.publicCompany(); }
 }

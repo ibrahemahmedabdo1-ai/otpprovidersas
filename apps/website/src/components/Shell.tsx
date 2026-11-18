@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { LOCALES, NATIVE_NAMES, type Locale } from "../i18n/config";
 import type { Dict } from "../i18n";
 import { getLanding } from "../i18n/landing";
-import { COMPANY, CONSOLE, contactHref } from "../lib/site";
+import { CONSOLE, getCompany } from "../lib/site";
 
 const NAV = [
   ["/products", "products"], ["/developers", "developers"], ["/pricing", "pricing"], ["/security", "security"],
@@ -25,9 +25,11 @@ function LangMenu({ locale, path, label, up = false }: { locale: Locale; path: s
   );
 }
 
-export function Shell({ locale, t, path, children }: { locale: Locale; t: Dict; path: string; children: ReactNode }) {
+export async function Shell({ locale, t, path, children }: { locale: Locale; t: Dict; path: string; children: ReactNode }) {
   const l = getLanding(locale);
   const f = l.footer;
+  const COMPANY = await getCompany();
+  const contactHref = () => (COMPANY.email ? `mailto:${COMPANY.email}` : CONSOLE.register);
   return (
     <>
       <a className="skip" href="#main">{t.common.skip}</a>

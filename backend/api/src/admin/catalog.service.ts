@@ -104,4 +104,42 @@ export class CatalogService {
     await writeAudit(this.db.pool, { actorId: c.userId, action: `user.${b.status}`, subjectType: "user", subjectId: id, ip });
     return { ok: true };
   }
+
+  /** Public footer details; only what an admin saved, nothing invented. */
+  async publicCompany() {
+    const r = await this.db.pool.query("SELECT value FROM system_settings WHERE key='company'");
+    const v = obj(r.rows[0]?.value);
+    const str = (k: string, max: number) => (typeof v[k] === "string" ? (v[k] as string).slice(0, max) : "");
+    return { legalName: str("legalName", 120), address: str("address", 400), email: str("email", 120), phone: str("phone", 40) };
+  }
+  async setCompany(c: AuthContext, body: unknown, ip: string | null) {
+    this.sup(c); const b = obj(body);
+    const t = (k: string, max: number): string => {
+      const v = typeof b[k] === "string" ? (b[k] as string).trim() : "";
+      if (v.length > max || /[<>]/.test(v)) bad({ [k]: `up to ${max} characters, no < or >` });
+      return v;
+    };
+    const value = { legalName: t("legalName", 120), address: t("address", 400), email: t("email", 120), phone: t("phone", 40) };
+    if (value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) bad({ email: "not a valid email" });
+    await this.db.pool.query("INSERT INTO system_settings(key,value,updated_by,updated_at) VALUES ('company',$1::jsonb,$2,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()", [JSON.stringify(value), c.userId]);
+    await writeAudit(this.db.pool, { actorId: c.userId, action: "company.updated", subjectType: "setting", subjectId: "company", ip });
+    return { ok: true };
+  }
+  async company(c: AuthContext) { this.staff(c); return this.publicCompany(); }
+
+  async tickets(c: AuthContext) {
+    this.staff(c);
+    const r = await this.db.pool.query(`SELECT t.id, t.subject, t.status, t.priority, t.created_at, t.updated_at, o.name AS organization, u.email AS assignee
+      FROM tickets t JOIN organizations o ON o.id=t.organization_id LEFT JOIN users u ON u.id=t.assignee_id ORDER BY t.updated_at DESC LIMIT 100`);
+    return r.rows.map((t) => ({ id: t.id, subject: t.subject, status: t.status, priority: t.priority, organization: t.organization, assignee: t.assignee ?? null, updatedAt: t.updated_at }));
+  }
+  async deliveries(c: AuthContext) {
+    this.staff(c);
+    const r = await this.db.pool.query(`SELECT d.id, d.event_type, d.status, d.attempts, d.last_status_code, d.last_error, d.created_at, w.url
+      FROM webhook_deliveries d JOIN webhooks w ON w.id=d.webhook_id ORDER BY d.created_at DESC LIMIT 100`);
+    return r.rows.map((d) => {
+      let host = ""; try { host = new URL(d.url as string).host; } catch { /* ignore */ }
+      return { id: d.id, event: d.event_type, status: d.status, attempts: d.attempts, code: d.last_status_code, error: d.last_error ? String(d.last_error).slice(0, 160) : null, host, createdAt: d.created_at };
+    });
+  }
 }
