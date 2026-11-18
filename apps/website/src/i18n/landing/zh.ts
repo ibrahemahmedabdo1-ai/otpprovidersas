@@ -6,7 +6,7 @@ const zh: Landing = {
     h1: "通过 WhatsApp 和邮件的快速、安全 OTP 验证",
     sub: "用 REST API 发送并校验一次性验证码。创建测试密钥，几分钟内发出第一条验证码。",
     cta1: "免费开始", cta2: "查看 API 文档",
-    window: "发送验证码", chatName: "OTPProvider", chatNow: "刚刚", sms: "您的验证码是", delivered: "已送达",
+    window: "发送验证码", chatName: "OTPProvider", chatNow: "刚刚", sms: "您的验证码是", chatTyping: "正在输入…", chatOnline: "在线", chatExpire: "验证码 5 分钟内有效。", chatShare: "请勿向任何人透露此验证码。",
   },
   strip: {
     title: "OTP 流程所需的一切",

@@ -101,7 +101,6 @@ export function Shell({ locale, t, path, children }: { locale: Locale; t: Dict; 
           <div className="foot-bottom">
             <p className="muted" style={{ margin: 0 }}>© {new Date().getFullYear()} {COMPANY.legalName || t.site.name}. {f.rights}</p>
             <div className="badges">{f.badges.map((b) => <span key={b}>{b}</span>)}</div>
-            <LangMenu locale={locale} path={path} label={f.language} up />
           </div>
           <div className="foot-notes">
             <p className="muted">{f.status}</p>

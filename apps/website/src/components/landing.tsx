@@ -48,18 +48,25 @@ export function Hero({ locale, l, siteName }: { locale: Locale; l: Landing; site
           </div>
           <div className="phone">
             <div className="phone-screen">
-              <div className="phone-top">
-                <span className="av"><img src="/icon.svg" alt="" width={18} height={18} /></span>
-                <div><b>{l.hero.chatName}</b><small>{siteName}</small></div>
-              </div>
-              <div className="phone-body">
-                <div className="dots"><span /><span /><span /></div>
-                <div className="bubble">
-                  {l.hero.sms}
-                  <strong>582910</strong>
-                  <small><span>{l.hero.chatNow}</span><em>✓✓ {l.hero.delivered}</em></small>
+              <div className="wa-status"><span dir="ltr">9:41</span><span className="wa-sig"><i /><i /><i /><i /></span></div>
+              <div className="wa-head">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+                <span className="av"><img src="/icon.svg" alt="" width={22} height={22} /></span>
+                <div className="wa-who">
+                  <b>{l.hero.chatName}<svg className="wa-verified" width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#00a884" /><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg></b>
+                  <small className="wa-sub"><span className="wa-online">{l.hero.chatOnline}</span><span className="wa-typing">{l.hero.chatTyping}</span></small>
                 </div>
               </div>
+              <div className="wa-body">
+                <span className="wa-day">{l.hero.chatNow}</span>
+                <div className="bubble">
+                  <p>{l.hero.sms}</p>
+                  <strong dir="ltr">582910</strong>
+                  <p>{l.hero.chatExpire} {l.hero.chatShare}</p>
+                  <small dir="ltr">9:41</small>
+                </div>
+              </div>
+              <div className="wa-input"><span className="wa-field" /><span className="wa-mic" /></div>
             </div>
           </div>
         </div>

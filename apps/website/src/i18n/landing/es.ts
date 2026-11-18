@@ -6,7 +6,7 @@ const es: Landing = {
     h1: "Verificación OTP rápida y segura por WhatsApp y correo",
     sub: "Una API REST para enviar y verificar códigos de un solo uso. Crea una clave de prueba y envía tu primer código en minutos.",
     cta1: "Empezar gratis", cta2: "Ver documentación",
-    window: "Enviar un código", chatName: "OTPProvider", chatNow: "ahora", sms: "Tu código de verificación es", delivered: "Entregado",
+    window: "Enviar un código", chatName: "OTPProvider", chatNow: "ahora", sms: "Tu código de verificación es", chatTyping: "escribiendo…", chatOnline: "en línea", chatExpire: "Caduca en 5 minutos.", chatShare: "No compartas este código con nadie.",
   },
   strip: {
     title: "Todo lo que necesita un flujo OTP",

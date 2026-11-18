@@ -6,7 +6,7 @@ const ru: Landing = {
     h1: "Быстрая и безопасная OTP-верификация через WhatsApp и email",
     sub: "REST API для отправки и проверки одноразовых кодов. Создайте тестовый ключ и отправьте первый код за несколько минут.",
     cta1: "Начать бесплатно", cta2: "Документация API",
-    window: "Отправка кода", chatName: "OTPProvider", chatNow: "сейчас", sms: "Ваш код подтверждения", delivered: "Доставлено",
+    window: "Отправка кода", chatName: "OTPProvider", chatNow: "сейчас", sms: "Ваш код подтверждения", chatTyping: "печатает…", chatOnline: "в сети", chatExpire: "Срок действия — 5 минут.", chatShare: "Никому не сообщайте этот код.",
   },
   strip: {
     title: "Всё, что нужно для OTP-потока",

@@ -5,7 +5,7 @@ const en = {
     h1: "Fast, secure WhatsApp and Email OTP verification",
     sub: "A REST API to send and verify one-time codes. Create a test key and send your first code in minutes.",
     cta1: "Get started free", cta2: "View API docs",
-    window: "Send a code", chatName: "OTPProvider", chatNow: "now", sms: "Your verification code is", delivered: "Delivered",
+    window: "Send a code", chatName: "OTPProvider", chatNow: "now", sms: "Your verification code is", chatTyping: "typing…", chatOnline: "online", chatExpire: "It expires in 5 minutes.", chatShare: "Never share this code with anyone.",
   },
   strip: {
     title: "Everything an OTP flow needs",
