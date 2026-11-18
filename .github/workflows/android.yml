@@ -33,14 +33,18 @@ jobs:
         run: |
           flutter create --org com.otpprovider --project-name ${{ matrix.app }} --platforms android .
           rm -rf test
+          # flutter create only grants INTERNET to debug/profile builds; release APKs need it to reach the API.
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
+          grep -n 'permission.INTERNET' "$M"
       - run: flutter pub add --dev flutter_lints
       - run: flutter pub get
       - name: Analyze
         run: flutter analyze --no-fatal-infos
       - name: Build debug APK
-        run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'http://10.0.2.2:3001' }}
+        run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
       - name: Build release APK (debug-signed unless a real keystore is wired in; NOT for store upload)
-        run: flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'http://10.0.2.2:3001' }}
+        run: flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
       - name: Upload APK (the account-wide Actions storage quota can be full; the build still counts as passed)
         uses: actions/upload-artifact@v4
         continue-on-error: true
