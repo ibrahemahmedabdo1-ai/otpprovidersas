@@ -125,11 +125,11 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
       const u = new URL(url);
       if (!isSafeWebhookUrl(url) || !(await resolvesToPublicOnly(u.hostname))) throw new Error("target_not_public");
       const body = JSON.stringify({ id, ...(payload as object) });
-      const res = await fetch(url, {
+      const res = (await fetch(url, {
         method: "POST", redirect: "manual", signal: AbortSignal.timeout(8_000),
         headers: { "content-type": "application/json", "user-agent": "OTPProvider-Webhooks/1", "x-otpprovider-signature": signWebhook(decryptString(secretEnc, this.cfg.encryptionKey), body), "x-otpprovider-delivery": id },
         body,
-      });
+      })) as unknown as { status: number };
       status = res.status;
       if (res.status < 200 || res.status >= 300) error = `http_${res.status}`;
     } catch (e) {
