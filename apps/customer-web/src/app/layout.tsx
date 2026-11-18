@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon-32.png", sizes: "32x32", type: "image/png" }], apple: "/apple-touch-icon.png" },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, colorScheme: "light dark" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, colorScheme: "dark" };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const c = (await cookies()).get(LOCALE_COOKIE)?.value;
