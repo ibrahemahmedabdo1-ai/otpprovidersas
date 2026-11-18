@@ -44,3 +44,21 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 - Legal documents (`docs/legal/TEMPLATES.md`) are unreviewed templates and need a lawyer.
 - Deployment, runbook and security notes exist in `docs/` but nothing has been deployed.
 - Money: wallet is credited only by an admin after independent receipt verification; support cannot approve or change balances (enforced in DB functions and tested).
+
+## Update: admin completion pass
+
+Built and deployed (API and admin-web builds READY on Vercel):
+- Pricing and packages: propose and approve per-message prices (Super Admin approves; the previous active price is retired), create packages (activation by Super Admin only).
+- Providers: list, enable/disable, maintenance (Super Admin only). All providers remain disabled until explicitly enabled.
+- Users: Super Admin can suspend or reactivate accounts; suspension revokes sessions. Cannot change own account or another Super Admin.
+- Every change is written to the append-only audit log.
+- Website redesigned (emerald identity, 6 languages, animated hero phone with an OTP message, packages, full footer); customer web restyled.
+
+Still NOT built or NOT verified:
+- Live OTP sending and provider routing, WhatsApp adapter (intentionally gated), Resend webhook receiver, webhook delivery monitoring UI.
+- Legal document publishing (needs counsel review), support ticket oversight in admin, organization editing.
+- admin-mobile has only Deposits, Approvals and Account; no pricing/providers screens yet.
+- Admin and support web are not yet restyled to the website identity.
+- Not verified live: login through the console proxy, password reset email, scheduler and webhook worker (the API runs as a serverless function; move it to a persistent host before real volume).
+- Local typecheck was not possible (no network for installs); correctness relies on the Vercel build.
+- Operator tasks: Resend domain, Android signing key, legal review, company address/email/phone env vars, DNS for subdomains, rotate and change the shared test passwords.
