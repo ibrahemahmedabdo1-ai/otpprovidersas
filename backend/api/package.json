@@ -8,7 +8,8 @@
     "dev": "tsc -p tsconfig.json && node --env-file=../../.env dist/main.js",
     "create-staff": "tsc -p tsconfig.json && node --env-file=../../.env dist/cli/create-staff.js",
     "seed-demo": "tsc -p tsconfig.json && node --env-file=../../.env dist/cli/seed-demo.js",
-    "test": "tsc -p tsconfig.json && node --test \"dist/**/*.test.js\""
+    "test": "tsc -p tsconfig.json && node --test \"dist/**/*.test.js\"",
+    "reset-primary-accounts": "tsc -p tsconfig.json && node --env-file=../../.env dist/cli/reset-primary-accounts.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
