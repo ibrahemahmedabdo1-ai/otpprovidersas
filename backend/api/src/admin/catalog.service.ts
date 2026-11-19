@@ -142,4 +142,23 @@ export class CatalogService {
       return { id: d.id, event: d.event_type, status: d.status, attempts: d.attempts, code: d.last_status_code, error: d.last_error ? String(d.last_error).slice(0, 160) : null, host, createdAt: d.created_at };
     });
   }
+
+  async orgs(c: AuthContext) {
+    this.staff(c);
+    const r = await this.db.pool.query("SELECT o.id, o.name, o.country, o.status, o.risk_level, o.created_at, u.email AS owner FROM organizations o JOIN users u ON u.id=o.owner_user_id ORDER BY o.created_at DESC LIMIT 100");
+    return r.rows.map((o) => ({ id: o.id, name: o.name, country: o.country ?? "", status: o.status, riskLevel: o.risk_level, owner: o.owner, createdAt: o.created_at }));
+  }
+  async updateOrg(c: AuthContext, idRaw: string, body: unknown, ip: string | null) {
+    this.sup(c); const id = this.id(idRaw); const b = obj(body);
+    const sets: string[] = []; const vals: unknown[] = [id];
+    if ("name" in b) { const n = typeof b.name === "string" ? b.name.trim() : ""; if (n.length < 2 || n.length > 120) bad({ name: "2-120 characters" }); vals.push(n); sets.push(`name=$${vals.length}`); }
+    if ("country" in b) { const k = typeof b.country === "string" ? b.country.trim().toUpperCase() : ""; if (k && !/^[A-Z]{2}$/.test(k)) bad({ country: "two letters" }); vals.push(k || null); sets.push(`country=$${vals.length}`); }
+    if ("status" in b) { if (b.status !== "active" && b.status !== "suspended") bad({ status: "active or suspended" }); vals.push(b.status); sets.push(`status=$${vals.length}`); }
+    if ("riskLevel" in b) { if (!["low", "normal", "elevated", "high"].includes(String(b.riskLevel))) bad({ riskLevel: "low, normal, elevated or high" }); vals.push(b.riskLevel); sets.push(`risk_level=$${vals.length}`); }
+    if (!sets.length) bad({ body: "nothing to change" });
+    const r = await this.db.pool.query(`UPDATE organizations SET ${sets.join(",")}, updated_at=now() WHERE id=$1 AND status IN ('active','suspended') RETURNING id`, vals);
+    if (!r.rowCount) throw new NotFoundException({ error: "not_found" });
+    await writeAudit(this.db.pool, { actorId: c.userId, action: "organization.updated", subjectType: "organization", subjectId: id, ip, meta: b });
+    return { ok: true };
+  }
 }

@@ -18,6 +18,8 @@ export class CatalogController {
   @Post("company") @HttpCode(200) setCompany(@Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setCompany(r.auth!, b, r.ip ?? null); }
   @Get("tickets") tickets(@Req() r: AuthedRequest) { return this.s.tickets(r.auth!); }
   @Get("webhook-deliveries") deliveries(@Req() r: AuthedRequest) { return this.s.deliveries(r.auth!); }
+  @Get("organizations") orgs(@Req() r: AuthedRequest) { return this.s.orgs(r.auth!); }
+  @Post("organizations/:id/update") @HttpCode(200) updateOrg(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.updateOrg(r.auth!, id, b, r.ip ?? null); }
   @Post("users/:id/status") @HttpCode(200) userStatus(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setUserStatus(r.auth!, id, b, r.ip ?? null); }
 }
 
