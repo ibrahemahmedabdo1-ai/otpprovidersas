@@ -1,0 +1,32 @@
+# Persistent API host (runs the scheduler and webhook worker, which Vercel serverless cannot).
+# Render dashboard: New > Blueprint > pick this repo. Fill every "sync: false" value yourself; never commit secrets.
+services:
+  - type: web
+    name: otpprovider-api
+    runtime: docker
+    dockerfilePath: ./infrastructure/docker/backend.Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        sync: false          # same Neon connection string the Vercel API uses
+      - key: ENCRYPTION_KEY
+        sync: false          # MUST be identical to the Vercel value or stored secrets cannot be decrypted
+      - key: API_KEY_PEPPER
+        sync: false          # identical to Vercel
+      - key: OTP_HASH_PEPPER
+        sync: false          # identical to Vercel
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false          # identical to Vercel (the console, admin, support and website origins)
+      - key: APP_BASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false          # from your Resend account
+      - key: EMAIL_FROM
+        sync: false          # e.g. "OTPProvider <no-reply@otpprovider.com>" on a Resend-verified domain
