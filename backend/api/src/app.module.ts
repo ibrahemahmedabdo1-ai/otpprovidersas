@@ -14,6 +14,7 @@ import { ProjectsController } from "./projects/projects.controller";
 import { ProjectsService } from "./projects/projects.service";
 import { AdminController } from "./admin/admin.controller";
 import { AdminService } from "./admin/admin.service";
+import { InternalController } from "./internal.controller";
 import { CatalogController, PublicController } from "./admin/catalog.controller";
 import { CatalogService } from "./admin/catalog.service";
 import { CustomerTicketsController, SupportTicketsController } from "./tickets/tickets.controller";
@@ -26,7 +27,7 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, CustomerTicketsController, SupportTicketsController, WebhooksController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController],
   providers: [
     DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },

@@ -1,0 +1,18 @@
+name: Housekeeping
+# Free scheduler for the serverless API: expires OTPs, cleans old tokens/sessions and delivers due webhooks.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call the API tick endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          API_URL: ${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
+        run: |
+          test -n "$CRON_SECRET" || { echo "CRON_SECRET not set"; exit 1; }
+          curl -fsS --max-time 60 -X POST -H "X-Cron-Secret: $CRON_SECRET" "$API_URL/v1/internal/tick"
