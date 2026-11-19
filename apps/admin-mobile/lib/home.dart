@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core.dart';
+import 'more.dart';
 
 class Home extends StatefulWidget {
   final Map<String, dynamic> me;
@@ -12,20 +13,39 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   int tab = 0;
   bool get isSuper => widget.me['role'] == 'super_admin';
+  String get myId => '${widget.me['id'] ?? ''}';
+
+  List<(String, IconData, Widget)> get sections => [
+    ('Deposits', Icons.payments_outlined, DepositsTab(isSuper: isSuper)),
+    if (isSuper) ('Approvals', Icons.verified_outlined, const ApprovalsTab()),
+    ('Users', Icons.people_outline, UsersTab(isSuper: isSuper, myId: myId)),
+    ('Organizations', Icons.business_outlined, OrgsTab(isSuper: isSuper)),
+    ('Prices', Icons.sell_outlined, PricesTab(isSuper: isSuper)),
+    ('Packages', Icons.inventory_2_outlined, PackagesTab(isSuper: isSuper)),
+    ('Providers', Icons.hub_outlined, ProvidersTab(isSuper: isSuper)),
+    ('Tickets', Icons.support_agent_outlined, const TicketsTab()),
+    ('Webhooks', Icons.webhook_outlined, const WebhooksTab()),
+    ('Audit log', Icons.fact_check_outlined, const AuditTab()),
+    ('Reconciliation', Icons.balance_outlined, const ReconciliationTab()),
+    ('Company', Icons.apartment_outlined, CompanyTab(isSuper: isSuper)),
+    ('Account', Icons.person_outline, Account(me: widget.me, signOut: widget.signOut)),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[DepositsTab(isSuper: isSuper), if (isSuper) const ApprovalsTab(), ProvidersTab(isSuper: isSuper), PricesTab(isSuper: isSuper), Account(me: widget.me, signOut: widget.signOut)];
+    final items = sections;
+    final i = tab < items.length ? tab : 0;
     return Scaffold(
-      appBar: AppBar(title: const Text('OTPProvider Admin')),
-      body: pages[tab],
-      bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: [
-        const NavigationDestination(icon: Icon(Icons.payments_outlined), label: 'Deposits'),
-        if (isSuper) const NavigationDestination(icon: Icon(Icons.verified_outlined), label: 'Approvals'),
-        const NavigationDestination(icon: Icon(Icons.hub_outlined), label: 'Providers'),
-        const NavigationDestination(icon: Icon(Icons.sell_outlined), label: 'Prices'),
-        const NavigationDestination(icon: Icon(Icons.person_outline), label: 'Account'),
-      ]),
+      appBar: AppBar(title: Text(items[i].$1)),
+      drawer: Drawer(child: SafeArea(child: ListView(children: [
+        const ListTile(title: Text('OTPProvider Admin', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
+        for (var k = 0; k < items.length; k++)
+          ListTile(
+            leading: Icon(items[k].$2), title: Text(items[k].$1), selected: k == i,
+            onTap: () { Navigator.pop(context); setState(() => tab = k); },
+          ),
+      ]))),
+      body: KeyedSubtree(key: ValueKey(items[i].$1), child: items[i].$3),
     );
   }
 }
