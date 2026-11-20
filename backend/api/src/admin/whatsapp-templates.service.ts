@@ -11,7 +11,7 @@ function parseTemplate(body: unknown) {
   const message = typeof b.body === "string" ? b.body.trim() : "";
   if (name.length < 2 || name.length > 80) throw new BadRequestException({ error: "validation_failed", fields: { name: "2-80 characters required" } });
   if (message.length < 1 || message.length > 500) throw new BadRequestException({ error: "validation_failed", fields: { body: "1-500 characters required" } });
-  const tokens = [...message.matchAll(/\{([a-z_]+)\}/g)].map(m => m[1]);
+  const tokens = [...message.matchAll(/\{([a-z_]+)\}/g)].map(m => m[1] ?? "");
   if (!tokens.includes("code") || tokens.some(t => !allowed.has(t)) || /[{}]/.test(message.replace(/\{(?:code|service_name|expiry_minutes)\}/g, ""))) {
     throw new BadRequestException({ error: "invalid_template_variables", message: "Use {code}; optional variables are {service_name} and {expiry_minutes}." });
   }
@@ -40,8 +40,8 @@ export class WhatsAppTemplatesService {
   async catalog(ctx: AuthContext, projectId: string) {
     const org = this.customer(ctx); await this.ownProject(org, projectId);
     const r = await this.db.pool.query(
-      "SELECT id,name,body,project_id,created_at FROM whatsapp_message_templates WHERE status='approved' AND (project_id IS NULL OR project_id IN (SELECT id FROM projects WHERE organization_id=$1)) ORDER BY project_id NULLS FIRST,created_at DESC",
-      [org]
+      "SELECT id,name,body,project_id,created_at FROM whatsapp_message_templates WHERE status='approved' AND (project_id IS NULL OR project_id=$2) ORDER BY project_id NULLS FIRST,created_at DESC",
+      [org, projectId]
     );
     const selected = await this.db.pool.query("SELECT whatsapp_template_id FROM projects WHERE id=$1", [projectId]);
     return { selectedTemplateId: selected.rows[0]?.whatsapp_template_id ?? null, templates: r.rows };
