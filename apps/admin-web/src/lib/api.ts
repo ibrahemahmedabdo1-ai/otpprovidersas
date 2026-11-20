@@ -1,7 +1,7 @@
 export type ApiResult<T = Record<string, unknown>> = { ok: boolean; status: number; data: T | null; networkError?: boolean };
 
 /** Calls the API through the same-origin proxy (/api -> API_BASE_URL). The session cookie is httpOnly. */
-export async function api<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<ApiResult<T>> {
+export async function api<T = Record<string, unknown>>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<ApiResult<T>> {
   try {
     const res = await fetch(`/api${path}`, {
       method, credentials: "same-origin", cache: "no-store",
