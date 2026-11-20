@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { Pool } from "pg";
 import pino from "pino";
 import QRCode from "qrcode";
-import makeWASocket, { Browsers, DisconnectReason, initAuthCreds } from "@whiskeysockets/baileys";
+import makeWASocket, { Browsers, BufferJSON, DisconnectReason, initAuthCreds } from "@whiskeysockets/baileys";
 
 const {
   DATABASE_URL, GATEWAY_TOKEN, PAIRING_VIEW_KEY, SESSION_ENCRYPTION_KEY,
@@ -25,7 +25,7 @@ const rate = new Map();
 function encrypt(value) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
-  const data = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
+  const data = Buffer.concat([cipher.update(JSON.stringify(value, BufferJSON.replacer), "utf8"), cipher.final()]);
   return [iv.toString("base64"), cipher.getAuthTag().toString("base64"), data.toString("base64")].join(".");
 }
 function decrypt(value) {
@@ -33,7 +33,7 @@ function decrypt(value) {
   const [iv, tag, data] = value.split(".");
   const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey, Buffer.from(iv, "base64"));
   decipher.setAuthTag(Buffer.from(tag, "base64"));
-  return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]).toString("utf8"));
+  return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]).toString("utf8"), BufferJSON.reviver);
 }
 function json(res, status, body) {
   res.writeHead(status, { "content-type":"application/json; charset=utf-8", "cache-control":"no-store, no-cache, must-revalidate", "pragma":"no-cache", "x-content-type-options":"nosniff" });
