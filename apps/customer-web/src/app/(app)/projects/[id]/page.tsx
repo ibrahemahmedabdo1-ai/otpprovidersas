@@ -7,6 +7,7 @@ import { Alert, CopyButton, Empty, Loading } from "../../../../components/ui";
 import { api, errorText, type ApiKey, type Project } from "../../../../lib/api";
 import { fmt } from "../../../../i18n";
 import { fmtDate } from "../../../../lib/format";
+import WhatsAppTemplates from "./WhatsAppTemplates";
 
 type NewKey = { id: string; prefix: string; key: string };
 
@@ -66,6 +67,8 @@ export default function ProjectDetail() {
           <div><dt className="muted">{t.project.daily}</dt><dd style={{ margin: 0 }}>{project.dailyLimit ?? t.common.none}</dd></div>
         </dl>
       </div>
+
+      <WhatsAppTemplates projectId={id} enabled={project.channels.whatsapp} />
 
       <div className="card">
         <h2>{t.project.keysTitle}</h2>
