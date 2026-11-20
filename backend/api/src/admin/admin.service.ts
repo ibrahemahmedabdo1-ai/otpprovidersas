@@ -4,10 +4,12 @@ import type { AuthContext } from "../auth/auth.service";
 import { isUuid } from "../auth/validators";
 import { writeAudit } from "../common/audit";
 import { cleanIp } from "../common/ip";
-import { microToUsd } from "../wallet/money";
+import { microToUsd, MICRO } from "../wallet/money";
 
 const DB_ERRORS: Record<string, [number, string]> = {
   not_permitted: [403, "forbidden"],
+  customer_not_found: [404, "customer_not_found"],
+  customer_not_active: [409, "customer_not_active"],
   super_admin_approval_required: [403, "super_admin_approval_required"],
   receipt_verification_required: [400, "receipt_verification_required"],
   deposit_not_found: [404, "not_found"],
@@ -51,13 +53,36 @@ export class AdminService {
     const q = typeof qRaw === "string" ? qRaw.trim().slice(0, 100) : "";
     const like = q ? `%${q.replace(/[\\%_]/g, (m) => "\\" + m)}%` : null;
     const r = await this.db.pool.query(
-      `SELECT u.id, u.email, u.display_name, u.role, u.status, u.created_at, o.name AS organization
+      `SELECT u.id, u.email, u.display_name, u.role, u.status, u.created_at, o.name AS organization,
+              COALESCE(w.paid_micro_usd + w.promo_micro_usd - w.reserved_micro_usd, 0)::text AS available_micro_usd
        FROM users u LEFT JOIN memberships m ON m.user_id = u.id AND m.role = 'owner' LEFT JOIN organizations o ON o.id = m.organization_id
+       LEFT JOIN wallets w ON w.organization_id = o.id
        WHERE ($1::text IS NULL OR u.email::text ILIKE $1::text ESCAPE '\\' OR u.display_name ILIKE $1::text ESCAPE '\\')
        ORDER BY u.created_at DESC LIMIT 100`, [like]);
-    return r.rows.map((u) => ({ id: u.id as string, email: u.email as string, name: u.display_name as string, role: u.role as string, status: u.status as string, organization: (u.organization as string | null) ?? null, createdAt: u.created_at }));
+    return r.rows.map((u) => ({ id: u.id as string, email: u.email as string, name: u.display_name as string, role: u.role as string, status: u.status as string, organization: (u.organization as string | null) ?? null, availableUsd: microToUsd(BigInt(u.available_micro_usd ?? "0")), createdAt: u.created_at }));
   }
 
+  /** Only the Super Admin can grant wallet credit. Every grant is posted to the immutable ledger. */
+  async creditCustomer(ctx: AuthContext, userIdRaw: string, body: unknown, ip: string | undefined) {
+    this.requireSuper(ctx);
+    const userId = this.id(userIdRaw);
+    const b = (body ?? {}) as { amountUsd?: unknown; bucket?: unknown; reason?: unknown };
+    const amountText = typeof b.amountUsd === "number" ? String(b.amountUsd) : b.amountUsd;
+    if (typeof amountText !== "string" || !/^\\d{1,6}(\\.\\d{1,2})?$/.test(amountText.trim())) throw new BadRequestException({ error: "validation_failed", fields: { amountUsd: "Enter an amount greater than 0 and up to 10000 USD, with at most 2 decimals" } });
+    const [whole = "0", fraction = ""] = amountText.trim().split(".");
+    const amount = BigInt(whole) * MICRO + BigInt(fraction.padEnd(6, "0"));
+    if (amount <= 0n || amount > 10_000n * MICRO) throw new BadRequestException({ error: "validation_failed", fields: { amountUsd: "Enter an amount greater than 0 and up to 10000 USD" } });
+    if (b.bucket !== "paid" && b.bucket !== "promo") throw new BadRequestException({ error: "validation_failed", fields: { bucket: "Choose paid or promo" } });
+    const reason = note(b.reason, 5, "reason");
+    try {
+      return await this.db.tx(async (c) => {
+        const r = await c.query("SELECT admin_credit_customer($1::uuid, $2::uuid, $3::bigint, $4::text, $5::text) AS credited", [userId, ctx.userId, amount.toString(), b.bucket, reason]);
+        const credited = r.rows[0].credited as boolean;
+        if (credited) await writeAudit(c, { actorId: ctx.userId, action: "admin.wallet_credit", subjectType: "user", subjectId: userId, ip: cleanIp(ip), meta: { amountMicroUsd: amount.toString(), bucket: b.bucket, reason } });
+        return { credited, amountUsd: microToUsd(amount), bucket: b.bucket };
+      });
+    } catch (e) { mapDbError(e); }
+  }
   /** Newest audit events first. Metadata is deliberately not returned here. */
   async listAudit(ctx: AuthContext, actionRaw: unknown) {
     this.requireMoneyStaff(ctx);
