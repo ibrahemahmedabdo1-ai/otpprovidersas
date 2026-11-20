@@ -752,6 +752,172 @@ paths:
         "403": {description: Super Admin only}
         "404": {description: Customer or wallet not found}
         "409": {description: Customer not active}
+  /v1/admin/company:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Read company settings (staff)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Role not allowed}
+    post:
+      tags: ["Staff: admin"]
+      summary: "Update public company settings (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "200": {description: Updated}
+        "403": {description: Super Admin only}
+  /v1/admin/organizations:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List customer organizations"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+  /v1/admin/organizations/{id}/update:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Update organization settings (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "200": {description: Updated}
+        "403": {description: Super Admin only}
+  /v1/admin/packages:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List wallet packages"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+    post:
+      tags: ["Staff: admin"]
+      summary: "Create a wallet package"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "201": {description: Created}
+  /v1/admin/packages/{id}/set:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Activate or deactivate a package (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [active], properties: {active: {type: boolean}}}
+      responses:
+        "200": {description: Updated}
+  /v1/admin/prices:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List service prices"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+    post:
+      tags: ["Staff: admin"]
+      summary: "Propose a service price"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "201": {description: Created; requires Super Admin approval before activation}
+  /v1/admin/prices/{id}/approve:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Approve a proposed service price (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: Approved}
+  /v1/admin/providers:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List message providers"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+  /v1/admin/providers/{id}/set:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Update provider routing settings (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        "200": {description: Updated}
+  /v1/admin/tickets:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List support tickets for administration"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+  /v1/admin/webhook-deliveries:
+    get:
+      tags: ["Staff: admin"]
+      summary: "List recent webhook delivery attempts"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+  /v1/admin/users/{id}/status:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Suspend or reactivate an account (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [status], properties: {status: {type: string, enum: [active, suspended]}}}
+      responses:
+        "200": {description: Updated}
+        "403": {description: Super Admin only}
+  /v1/internal/tick:
+    post:
+      tags: ["Internal"]
+      summary: "Trigger scheduled delivery and webhook processing; requires x-cron-secret"
+      parameters:
+        - {name: x-cron-secret, in: header, required: true, schema: {type: string}}
+      responses:
+        "200": {description: Processing completed}
+        "403": {description: Forbidden}
+  /v1/public/company:
+    get:
+      tags: ["Public"]
+      summary: "Read the company details selected for public display"
+      responses:
+        "200": {description: OK}
   /v1/admin/audit:
     get:
       tags: ["Staff: admin"]
