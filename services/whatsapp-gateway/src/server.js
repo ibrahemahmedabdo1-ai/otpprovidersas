@@ -138,7 +138,25 @@ async function startDevice(id,saved){
  starts.set(id,task);
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
-async function init(){await pool.query("SELECT 1");const p=await pool.query("INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{\"gateway\":\"railway\",\"customerSendingEnabled\":false,\"experimental\":true}'::jsonb) ON CONFLICT(key) DO UPDATE SET config=providers.config||EXCLUDED.config RETURNING id");providerId=p.rows[0].id;let d=await pool.query("SELECT id FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at LIMIT 1",[providerId]);if(!d.rowCount){d=await pool.query("INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible) VALUES($1,'WhatsApp Main','disconnected',false) RETURNING id",[providerId]);}const all=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);for(const row of all.rows)startDevice(row.id,decrypt(row.session_encrypted)).catch(()=>updateDevice(row.id,{state:"error",last_error:"startup_failed"}));}
+async function init(){await pool.query("SELECT 1");const p=await pool.query("INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{\"gateway\":\"railway\",\"customerSendingEnabled\":false,\"experimental\":true}'::jsonb) ON CONFLICT(key) DO UPDATE SET config=providers.config||EXCLUDED.config RETURNING id");providerId=p.rows[0].id;
+// One-time migration from the legacy Bun gateway tables. Auth material is
+// immediately encrypted with SESSION_ENCRYPTION_KEY before entering the
+// platform's canonical whatsapp_devices table.
+const legacy=await pool.query("SELECT id,label,creds FROM wa_gateway_devices ORDER BY created_at").catch(()=>({rows:[]}));
+for(const old of legacy.rows){
+ const exists=await pool.query("SELECT id FROM whatsapp_devices WHERE id=$1",[old.id]);
+ if(exists.rowCount) continue;
+ const stored=await pool.query("SELECT k,v FROM wa_gateway_kv WHERE k LIKE $1",[old.id+":%"]);
+ const keys={};
+ for(const item of stored.rows){
+  const suffix=item.k.slice(String(old.id).length+1);
+  const split=suffix.indexOf(":");
+  if(split>0) keys[suffix.slice(0,split)+":"+suffix.slice(split+1)]=item.v;
+ }
+ const session=encrypt({creds:old.creds||initAuthCreds(),keys});
+ await pool.query("INSERT INTO whatsapp_devices(id,provider_id,label,state,session_encrypted,routing_eligible) VALUES($1,$2,$3,'disconnected',$4,false) ON CONFLICT(id) DO NOTHING",[old.id,providerId,old.label||"WhatsApp Main",session]);
+}
+let d=await pool.query("SELECT id FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at LIMIT 1",[providerId]);if(!d.rowCount){d=await pool.query("INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible) VALUES($1,'WhatsApp Main','disconnected',false) RETURNING id",[providerId]);}const all=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);for(const row of all.rows)startDevice(row.id,decrypt(row.session_encrypted)).catch(()=>updateDevice(row.id,{state:"error",last_error:"startup_failed"}));}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,"http://localhost");if(req.method==="GET"&&(url.pathname==="/"||url.pathname==="/health"))return json(res,200,{ok:true,service:"otp-whatsapp-gateway",devices:runtimes.size});if(!authorized(req))return json(res,401,{error:"unauthorized"});if(!allowRate(req))return json(res,429,{error:"rate_limited"});
 if(req.method==="GET"&&url.pathname==="/admin/devices"){const r=await pool.query("SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);return json(res,200,r.rows);}
 const match=url.pathname.match(/^\/admin\/devices\/([0-9a-f-]{36})(?:\/(qr|reconnect))?$/i);if(match){const id=match[1],action=match[2];const row=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE id=$1 AND provider_id=$2",[id,providerId]);if(!row.rowCount)return json(res,404,{error:"device_not_found"});if(req.method==="GET"&&action==="qr"){const rt=runtimes.get(id);return json(res,200,{state:rt?.state||"disconnected",qr:rt?.qr||null,lastConnectedAt:rt?.lastConnectedAt||null,lastError:rt?.lastError||null});}if(req.method==="POST"&&action==="reconnect"){const rt=await startDevice(id,decrypt(row.rows[0].session_encrypted));return json(res,202,{ok:true,state:rt.state});}if(req.method==="DELETE"&&!action){const rt=runtimes.get(id);if(rt?.socket){try{rt.socket.logout();}catch{}try{rt.socket.end(undefined);}catch{}}runtimes.delete(id);await pool.query("DELETE FROM whatsapp_devices WHERE id=$1",[id]);return json(res,200,{ok:true});}}
