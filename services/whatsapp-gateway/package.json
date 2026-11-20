@@ -1,0 +1,17 @@
+{
+  "name": "@otp/whatsapp-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.18",
+    "pg": "8.13.1",
+    "qrcode": "1.5.4"
+  }
+}
