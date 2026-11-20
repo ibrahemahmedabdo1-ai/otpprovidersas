@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alert } from "../../../../components/ui";
 import { api, errorText } from "../../../../lib/api";
+import { useApp } from "../../../../components/Providers";
 
 type T={id:string;name:string;body:string;project_id:string|null};
 type Data={selectedTemplateId:string|null;templates:T[]};
 export default function WhatsAppTemplates({projectId,enabled}:{projectId:string;enabled:boolean}){
+ const { t } = useApp();
  const [data,setData]=useState<Data|null>(null);const [name,setName]=useState("");const [body,setBody]=useState("Your verification code is {code}. It expires in {expiry_minutes} minutes.");const [err,setErr]=useState("");const [note,setNote]=useState("");const [busy,setBusy]=useState(false);
- const load=useCallback(async()=>{if(!enabled)return;const r=await api<Data>("GET",`/v1/console/projects/${projectId}/whatsapp-templates`);if(r.ok&&r.data)setData(r.data);else setErr(errorText(r));},[enabled,projectId]);
+ const load=useCallback(async()=>{if(!enabled)return;const r=await api<Data>("GET",`/v1/console/projects/${projectId}/whatsapp-templates`);if(r.ok&&r.data)setData(r.data);else setErr(errorText(t, r));},[enabled,projectId]);
  useEffect(()=>{void load();},[load]);
  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setErr("");setNote("");const r=await api("POST",`/v1/console/projects/${projectId}/whatsapp-templates`,{body:{name,body}});setBusy(false);if(r.ok){setName("");setNote("Submitted for Admin approval. It cannot be used until approved.");}else setErr(errorText(r));}
  async function select(id:string){setErr("");const r=await api("POST",`/v1/console/projects/${projectId}/whatsapp-templates/${id}/select`);if(r.ok){setNote("Approved template selected.");await load();}else setErr(errorText(r));}
