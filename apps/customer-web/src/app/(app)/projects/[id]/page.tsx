@@ -68,6 +68,8 @@ export default function ProjectDetail() {
         </dl>
       </div>
 
+      <WhatsAppTemplates projectId={id} enabled={project.channels.whatsapp} />
+
       <div className="card">
         <h2>{t.project.keysTitle}</h2>
         <p className="muted">{t.project.keysSub}</p>
