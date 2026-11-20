@@ -8,7 +8,7 @@ import { SAFE_METHODS, isOriginAllowed } from "./common/origin";
 
 async function bootstrap() {
   const cfg = loadConfig(process.env);           // refuse to start with bad configuration
-  const app = await NestFactory.create(AppModule, { logger: ["log", "warn", "error"] });
+  const app = await NestFactory.create(AppModule, { logger: ["log", "warn", "error"], rawBody: true });
   app.getHttpAdapter().getInstance().disable("x-powered-by");
 
   // Correlation ID on every request/response; security headers.
