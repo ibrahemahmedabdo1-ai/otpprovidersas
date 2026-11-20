@@ -17,7 +17,7 @@ export class WhatsappDevicesService {
     if (!base || token.length < 32) throw new ServiceUnavailableException({ error: "whatsapp_gateway_not_configured" });
     let response: Response;
     try {
-      response = await fetch(base + path, { method, headers: { authorization: "Bearer " + token, ...(body === undefined ? {} : { "content-type": "application/json" }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(12000), cache: "no-store" });
+      response = await fetch(base + path, { method, headers: { authorization: "Bearer " + token, ...(body === undefined ? {} : { "content-type": "application/json" }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(12000) });
     } catch { throw new ServiceUnavailableException({ error: "whatsapp_gateway_unreachable" }); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
