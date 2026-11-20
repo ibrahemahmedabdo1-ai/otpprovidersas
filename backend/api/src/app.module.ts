@@ -8,6 +8,8 @@ import { loadConfig } from "./config";
 import { ApiKeyGuard } from "./otp/api-key.guard";
 import { OtpController } from "./otp/otp.controller";
 import { OtpService } from "./otp/otp.service";
+import { LiveOtpDeliveryService } from "./otp/live-otp-delivery.service";
+import { ResendWebhookController } from "./otp/resend-webhook.controller";
 import { DeveloperController, WalletController } from "./wallet/wallet.controller";
 import { WalletService } from "./wallet/wallet.service";
 import { ProjectsController } from "./projects/projects.controller";
@@ -27,9 +29,9 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController],
   providers: [
-    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
+    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
