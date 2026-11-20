@@ -10,6 +10,7 @@ const DB_ERRORS: Record<string, [number, string]> = {
   not_permitted: [403, "forbidden"],
   customer_not_found: [404, "customer_not_found"],
   customer_not_active: [409, "customer_not_active"],
+  invalid_credit: [400, "invalid_credit"],
   super_admin_approval_required: [403, "super_admin_approval_required"],
   receipt_verification_required: [400, "receipt_verification_required"],
   deposit_not_found: [404, "not_found"],
@@ -68,7 +69,7 @@ export class AdminService {
     const userId = this.id(userIdRaw);
     const b = (body ?? {}) as { amountUsd?: unknown; bucket?: unknown; reason?: unknown };
     const amountText = typeof b.amountUsd === "number" ? String(b.amountUsd) : b.amountUsd;
-    if (typeof amountText !== "string" || !/^\\d{1,6}(\\.\\d{1,2})?$/.test(amountText.trim())) throw new BadRequestException({ error: "validation_failed", fields: { amountUsd: "Enter an amount greater than 0 and up to 10000 USD, with at most 2 decimals" } });
+    if (typeof amountText !== "string" || !/^\d{1,6}(\.\d{1,2})?$/.test(amountText.trim())) throw new BadRequestException({ error: "validation_failed", fields: { amountUsd: "Enter an amount greater than 0 and up to 10000 USD, with at most 2 decimals" } });
     const [whole = "0", fraction = ""] = amountText.trim().split(".");
     const amount = BigInt(whole) * MICRO + BigInt(fraction.padEnd(6, "0"));
     if (amount <= 0n || amount > 10_000n * MICRO) throw new BadRequestException({ error: "validation_failed", fields: { amountUsd: "Enter an amount greater than 0 and up to 10000 USD" } });
