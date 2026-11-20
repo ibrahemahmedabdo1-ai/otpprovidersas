@@ -17,7 +17,7 @@ export class WhatsAppDevicesService {
   private async call(path:string,method="GET",body?:unknown) {
     const {base,token}=this.gateway();
     try {
-      const r=await fetch(base+path,{method,headers:{authorization:"Bearer "+token,...(body?{"content-type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store",signal:AbortSignal.timeout(8000)});
+      const r=await fetch(base+path,{method,headers:{authorization:"Bearer "+token,...(body?{"content-type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});
       const data=await r.json().catch(()=>({}));
       if(!r.ok) throw new BadGatewayException({error:"whatsapp_gateway_error",status:r.status,detail:(data as any).error||"gateway_request_failed"});
       return data;
