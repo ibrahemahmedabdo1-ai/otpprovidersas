@@ -9,6 +9,10 @@ const { DATABASE_URL,GATEWAY_TOKEN,SESSION_ENCRYPTION_KEY,WA_CUSTOMER_SEND_ENABL
 if(!DATABASE_URL||!GATEWAY_TOKEN||!SESSION_ENCRYPTION_KEY) throw new Error("Missing required gateway environment configuration");
 if(!/^[a-f0-9]{64}$/i.test(SESSION_ENCRYPTION_KEY)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
 const pool=new Pool({connectionString:DATABASE_URL,max:8,ssl:{rejectUnauthorized:true}});
+const ownerLock=await pool.connect();
+const lock=await ownerLock.query("SELECT pg_try_advisory_lock(hashtext($1)) AS acquired",["otpprovider:whatsapp-gateway:singleton"]);
+if(!lock.rows[0]?.acquired){ownerLock.release();throw new Error("another_whatsapp_gateway_instance_is_active");}
+const starts=new Map();
 const encryptionKey=Buffer.from(SESSION_ENCRYPTION_KEY,"hex");
 const runtimes=new Map(); const rate=new Map(); let providerId;
 function encrypt(value){const iv=crypto.randomBytes(12);const c=crypto.createCipheriv("aes-256-gcm",encryptionKey,iv);const data=Buffer.concat([c.update(JSON.stringify(value,BufferJSON.replacer),"utf8"),c.final()]);return [iv.toString("base64"),c.getAuthTag().toString("base64"),data.toString("base64")].join(".");}
@@ -54,6 +58,8 @@ function makeAuthState(id,saved){
  };
 }
 async function startDevice(id,saved){
+ if(starts.has(id)) return starts.get(id);
+ const task=(async()=>{
  const previous=runtimes.get(id);
  const rt={state:"starting",qr:null,lastConnectedAt:null,lastError:null,socket:null,auth:null,retryTimer:null};
  // Publish the new runtime before stopping the old socket. Its late close event
@@ -72,7 +78,8 @@ async function startDevice(id,saved){
   markOnlineOnConnect:false,
   connectTimeoutMs:30000,
   defaultQueryTimeoutMs:30000,
-  logger:pino({level:"silent"})
+  logger:pino({level:"silent"}),
+  keepAliveIntervalMs:20000
  });
  rt.socket.ev.on("creds.update",()=>{
   if(runtimes.get(id)!==rt) return;
@@ -127,6 +134,9 @@ async function startDevice(id,saved){
   }
  });
  return rt;
+ })();
+ starts.set(id,task);
+ try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
 async function init(){await pool.query("SELECT 1");const p=await pool.query("INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{\"gateway\":\"railway\",\"customerSendingEnabled\":false,\"experimental\":true}'::jsonb) ON CONFLICT(key) DO UPDATE SET config=providers.config||EXCLUDED.config RETURNING id");providerId=p.rows[0].id;let d=await pool.query("SELECT id FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at LIMIT 1",[providerId]);if(!d.rowCount){d=await pool.query("INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible) VALUES($1,'WhatsApp Main','disconnected',false) RETURNING id",[providerId]);}const all=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);for(const row of all.rows)startDevice(row.id,decrypt(row.session_encrypted)).catch(()=>updateDevice(row.id,{state:"error",last_error:"startup_failed"}));}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,"http://localhost");if(req.method==="GET"&&(url.pathname==="/"||url.pathname==="/health"))return json(res,200,{ok:true,service:"otp-whatsapp-gateway",devices:runtimes.size});if(!authorized(req))return json(res,401,{error:"unauthorized"});if(!allowRate(req))return json(res,429,{error:"rate_limited"});
@@ -136,4 +146,4 @@ if(req.method==="GET"&&url.pathname==="/admin/status"){const rows=await pool.que
 if(req.method==="POST"&&url.pathname==="/admin/test-send"){if(WA_ADMIN_TEST_SEND_ENABLED!=="true")return json(res,423,{error:"admin_test_sending_disabled"});let b;try{b=await readBody(req);}catch{return json(res,400,{error:"invalid_request"});}const id=String(b.deviceId||""),rt=runtimes.get(id),to=String(b.to||"").replace(/[^0-9]/g,""),message=String(b.message||"").trim(),allow=WA_TEST_RECIPIENTS.split(",").map(x=>x.replace(/[^0-9]/g,""));if(!rt?.socket||rt.state!=="connected")return json(res,503,{error:"whatsapp_not_connected"});if(!/^\d{8,15}$/.test(to)||!allow.includes(to)||!message||message.length>500)return json(res,400,{error:"recipient_not_allowlisted_or_invalid_message"});try{const result=await rt.socket.sendMessage(to+"@s.whatsapp.net",{text:message});return json(res,202,{accepted:true,messageId:result?.key?.id||null,note:"Submission is not confirmed delivery; no wallet charge is performed."});}catch{return json(res,502,{error:"send_failed"});}}
 if(req.method==="POST"&&url.pathname==="/v1/send"){if(WA_CUSTOMER_SEND_ENABLED!=="true")return json(res,423,{error:"customer_sending_disabled"});return json(res,503,{error:"live_delivery_receipts_not_implemented"});}return json(res,404,{error:"not_found"});});
 async function readBody(req){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>8192)throw Error("body_too_large");chunks.push(c);}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};}
-await init();server.listen(Number(PORT),"0.0.0.0");process.on("SIGTERM",async()=>{for(const rt of runtimes.values())try{rt.socket?.end(undefined);}catch{}await pool.end();process.exit(0);});
+await init();server.listen(Number(PORT),"0.0.0.0");process.on("SIGTERM",async()=>{for(const rt of runtimes.values())try{rt.socket?.end(undefined);}catch{}try{await ownerLock.query("SELECT pg_advisory_unlock(hashtext($1))",["otpprovider:whatsapp-gateway:singleton"]);}catch{}ownerLock.release();await pool.end();process.exit(0);});
