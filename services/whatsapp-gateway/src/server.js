@@ -5,8 +5,8 @@ import pino from "pino";
 import QRCode from "qrcode";
 import makeWASocket, { Browsers, BufferJSON, DisconnectReason, initAuthCreds } from "@whiskeysockets/baileys";
 
-const { DATABASE_URL,GATEWAY_TOKEN,PAIRING_VIEW_KEY,SESSION_ENCRYPTION_KEY,WA_CUSTOMER_SEND_ENABLED="false",WA_ADMIN_TEST_SEND_ENABLED="false",WA_TEST_RECIPIENTS="",PORT="8080" }=process.env;
-if(!DATABASE_URL||!GATEWAY_TOKEN||!PAIRING_VIEW_KEY||!SESSION_ENCRYPTION_KEY) throw new Error("Missing required gateway environment configuration");
+const { DATABASE_URL,GATEWAY_TOKEN,SESSION_ENCRYPTION_KEY,WA_CUSTOMER_SEND_ENABLED="false",WA_ADMIN_TEST_SEND_ENABLED="false",WA_TEST_RECIPIENTS="",PORT="8080" }=process.env;
+if(!DATABASE_URL||!GATEWAY_TOKEN||!SESSION_ENCRYPTION_KEY) throw new Error("Missing required gateway environment configuration");
 if(!/^[a-f0-9]{64}$/i.test(SESSION_ENCRYPTION_KEY)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
 const pool=new Pool({connectionString:DATABASE_URL,max:8,ssl:{rejectUnauthorized:true}});
 const encryptionKey=Buffer.from(SESSION_ENCRYPTION_KEY,"hex");
