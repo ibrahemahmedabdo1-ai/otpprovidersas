@@ -19,14 +19,14 @@ SELECT 'Starter Credit $4.99', 4990000, 4990000, false, false
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE name = 'Starter Credit $4.99');
 
 INSERT INTO audit_events(actor_id, action, subject_type, subject_id, metadata)
-SELECT 'eb09bc43-7405-4995-bcd2-9b4d96bc7b0e'::uuid, 'provider.registered', 'provider', p.id::text,
+SELECT NULL::uuid, 'provider.registered', 'provider', p.id::text,
        jsonb_build_object('key', p.key, 'enabled', p.enabled, 'note', 'Registered disabled pending end-to-end verification')
 FROM providers p
 WHERE p.key IN ('resend_email', 'whatsapp_linked_device')
   AND NOT EXISTS (SELECT 1 FROM audit_events a WHERE a.action = 'provider.registered' AND a.subject_id = p.id::text);
 
 INSERT INTO audit_events(actor_id, action, subject_type, subject_id, metadata)
-SELECT 'eb09bc43-7405-4995-bcd2-9b4d96bc7b0e'::uuid, 'package.created', 'package', p.id::text,
+SELECT NULL::uuid, 'package.created', 'package', p.id::text,
        jsonb_build_object('name', p.name, 'priceMicroUsd', p.price_micro_usd, 'creditMicroUsd', p.credit_micro_usd,
                           'active', p.active, 'note', 'Draft until live delivery test passes')
 FROM packages p
