@@ -49,6 +49,11 @@ export class WhatsappDevicesService {
     await writeAudit(this.db.pool, { actorId: c.userId, action: "whatsapp_device.renamed", subjectType: "whatsapp_device", subjectId: id, ip, meta: { label } });
     return { ok: true, id, label };
   }
+  async qr(c: AuthContext, idRaw: string) {
+    this.read(c); const id = this.id(idRaw);
+    const data = await this.gateway("/admin/devices/" + id + "/qr") as any;
+    return { state: data.state, qr: data.qr ?? null, error: data.error ?? null };
+  }
   async reconnect(c: AuthContext, idRaw: string, ip: string | null) {
     this.mutate(c); const id = this.id(idRaw);
     const result = await this.gateway("/admin/devices/" + id + "/reconnect", "POST");
