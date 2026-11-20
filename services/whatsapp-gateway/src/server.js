@@ -1,8 +1,9 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import { Pool } from "pg";
+import pino from "pino";
 import QRCode from "qrcode";
-import makeWASocket, { Browsers, DisconnectReason, initAuthCreds, proto } from "@whiskeysockets/baileys";
+import makeWASocket, { Browsers, DisconnectReason, initAuthCreds } from "@whiskeysockets/baileys";
 
 const {
   DATABASE_URL, GATEWAY_TOKEN, PAIRING_VIEW_KEY, SESSION_ENCRYPTION_KEY,
@@ -58,13 +59,18 @@ async function ensureDatabase() {
     ["whatsapp_linked_device", JSON.stringify({ gateway: "railway", customerSendingEnabled: false, experimental: true })]
   );
   providerId = p.rows[0].id;
+  const existing = await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at ASC LIMIT 1", [providerId]);
+  if (existing.rowCount) {
+    deviceId = existing.rows[0].id;
+    await pool.query("UPDATE whatsapp_devices SET label=$1,routing_eligible=false WHERE id=$2", [DEVICE_LABEL, deviceId]);
+    return existing.rows[0].session_encrypted ? decrypt(existing.rows[0].session_encrypted) : null;
+  }
   const d = await pool.query(
     "INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible,session_encrypted) VALUES($1,$2,'disconnected',false,NULL) RETURNING id",
     [providerId, DEVICE_LABEL]
   );
   deviceId = d.rows[0].id;
-  const stored = await pool.query("SELECT session_encrypted FROM whatsapp_devices WHERE id=$1", [deviceId]);
-  return stored.rows[0]?.session_encrypted ? decrypt(stored.rows[0].session_encrypted) : null;
+  return null;
 }
 async function persistAuth(auth) {
   saveQueue = saveQueue.then(async () => {
@@ -105,7 +111,7 @@ async function startSocket(saved) {
     auth: auth.state, browser: Browsers.ubuntu("OTPProvider"),
     printQRInTerminal: false, syncFullHistory: false, markOnlineOnConnect: false,
     connectTimeoutMs: 30_000, defaultQueryTimeoutMs: 30_000,
-    logger: { level:"silent", child(){return this}, trace(){}, debug(){}, info(){}, warn(){}, error(){} }
+    logger: pino({ level:"silent" })
   });
   socket.ev.on("creds.update", async () => { try { await persistAuth(auth.snapshot()); } catch { lastError = "auth_persist_failed"; } });
   socket.ev.on("connection.update", async (u) => {
