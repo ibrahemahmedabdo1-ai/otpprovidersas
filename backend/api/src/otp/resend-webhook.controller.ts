@@ -1,4 +1,4 @@
-import { Controller, HttpCode, Post, Req } from "@nestjs/common";
+import { BadRequestException, Controller, HttpCode, Post, Req } from "@nestjs/common";
 import type { Request } from "express";
 import { LiveOtpDeliveryService } from "./live-otp-delivery.service";
 
@@ -17,7 +17,7 @@ export class ResendWebhookController {
       "svix-timestamp": req.header("svix-timestamp") ?? undefined,
       "svix-signature": req.header("svix-signature") ?? undefined,
     };
-    if (!req.rawBody) return { ok: false, error: "raw_body_unavailable" };
+    if (!req.rawBody) throw new BadRequestException({ error: "raw_body_unavailable" });
     return this.live.handleResendWebhook(req.rawBody, headers);
   }
 }
