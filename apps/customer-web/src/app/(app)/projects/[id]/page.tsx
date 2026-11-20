@@ -7,6 +7,7 @@ import { Alert, CopyButton, Empty, Loading } from "../../../../components/ui";
 import { api, errorText, type ApiKey, type Project } from "../../../../lib/api";
 import { fmt } from "../../../../i18n";
 import { fmtDate } from "../../../../lib/format";
+import WhatsAppTemplates from "./WhatsAppTemplates";
 
 type NewKey = { id: string; prefix: string; key: string };
 
