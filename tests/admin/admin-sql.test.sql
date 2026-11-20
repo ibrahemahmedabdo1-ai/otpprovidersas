@@ -17,6 +17,7 @@ SELECT id AS adm  FROM users WHERE email='adm@x.co' \gset
 SELECT id AS root FROM users WHERE email='root@x.co' \gset
 INSERT INTO organizations(name,owner_user_id) VALUES ('O',:'cust');
 SELECT id AS org FROM organizations WHERE owner_user_id=:'cust' \gset
+INSERT INTO memberships(organization_id,user_id,role) VALUES (:'org',:'cust','owner');
 INSERT INTO wallets(organization_id) VALUES (:'org');
 SELECT id AS w FROM wallets WHERE organization_id=:'org' \gset
 
