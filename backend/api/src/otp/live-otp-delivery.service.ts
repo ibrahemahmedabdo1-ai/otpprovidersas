@@ -168,7 +168,7 @@ export class LiveOtpDeliveryService {
          WHERE d.provider_message_id=$1 FOR UPDATE OF d,r`, [messageId]);
       const row = found.rows[0];
       if (!row || row.status === "delivered" || row.status === "failed") return;
-      if (type === "email.delivered") {
+      if (type === "email.delivered" || type === "email.complained") {
         await c.query("UPDATE otp_deliveries SET status='delivered',evidence=$2::jsonb,updated_at=now() WHERE id=$1", [row.id, json({ eventId: safeString(event.id), type, createdAt: event.created_at })]);
         await c.query("SELECT charge_confirmed_delivery($1,$2,$3)", [row.wallet_id, row.id, row.unit_price_micro_usd]);
         await c.query("UPDATE otp_requests SET status='sent',last_sent_at=now() WHERE id=$1", [row.request_id]);
