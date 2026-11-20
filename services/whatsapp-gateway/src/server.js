@@ -1,0 +1,167 @@
+import http from "node:http";
+import crypto from "node:crypto";
+import { Pool } from "pg";
+import pino from "pino";
+import QRCode from "qrcode";
+import makeWASocket, { Browsers, BufferJSON, DisconnectReason, initAuthCreds } from "@whiskeysockets/baileys";
+
+const { DATABASE_URL,GATEWAY_TOKEN,SESSION_ENCRYPTION_KEY,WA_CUSTOMER_SEND_ENABLED="false",WA_ADMIN_TEST_SEND_ENABLED="false",WA_TEST_RECIPIENTS="",PORT="8080" }=process.env;
+if(!DATABASE_URL||!GATEWAY_TOKEN||!SESSION_ENCRYPTION_KEY) throw new Error("Missing required gateway environment configuration");
+if(!/^[a-f0-9]{64}$/i.test(SESSION_ENCRYPTION_KEY)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
+const pool=new Pool({connectionString:DATABASE_URL,max:8,ssl:{rejectUnauthorized:true}});
+const ownerLock=await pool.connect();
+const lock=await ownerLock.query("SELECT pg_try_advisory_lock(hashtext($1)) AS acquired",["otpprovider:whatsapp-gateway:singleton"]);
+if(!lock.rows[0]?.acquired){ownerLock.release();throw new Error("another_whatsapp_gateway_instance_is_active");}
+const starts=new Map();
+const encryptionKey=Buffer.from(SESSION_ENCRYPTION_KEY,"hex");
+const runtimes=new Map(); const rate=new Map(); let providerId;
+function encrypt(value){const iv=crypto.randomBytes(12);const c=crypto.createCipheriv("aes-256-gcm",encryptionKey,iv);const data=Buffer.concat([c.update(JSON.stringify(value,BufferJSON.replacer),"utf8"),c.final()]);return [iv.toString("base64"),c.getAuthTag().toString("base64"),data.toString("base64")].join(".");}
+function decrypt(value){if(!value)return null;const [iv,tag,data]=value.split(".");const d=crypto.createDecipheriv("aes-256-gcm",encryptionKey,Buffer.from(iv,"base64"));d.setAuthTag(Buffer.from(tag,"base64"));return JSON.parse(Buffer.concat([d.update(Buffer.from(data,"base64")),d.final()]).toString("utf8"),BufferJSON.reviver);}
+function json(res,status,body){res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store, no-cache, must-revalidate","pragma":"no-cache","x-content-type-options":"nosniff"});res.end(JSON.stringify(body));}
+function authorized(req){const a=Buffer.from(req.headers.authorization||""),b=Buffer.from("Bearer "+GATEWAY_TOKEN);return a.length===b.length&&crypto.timingSafeEqual(a,b);}
+function allowRate(req,limit=60){const ip=req.socket.remoteAddress||"unknown",now=Date.now(),e=rate.get(ip)||{start:now,count:0};if(now-e.start>60000){e.start=now;e.count=0;}e.count++;rate.set(ip,e);return e.count<=limit;}
+async function updateDevice(id,patch){const keys=Object.keys(patch);if(!keys.length)return;const sets=keys.map((k,i)=>k+"=$"+(i+1)).join(",");await pool.query("UPDATE whatsapp_devices SET "+sets+",last_activity_at=now() WHERE id=$"+(keys.length+1),[...Object.values(patch),id]);}
+function makeAuthState(id,saved){
+ const creds=saved?.creds||initAuthCreds(),keys=saved?.keys||{};
+ let queue=Promise.resolve();
+ const persist=()=>{
+  // Recover the write queue after a transient database error; a rejected promise
+  // must not permanently prevent later credential updates from being saved.
+  const encrypted=encrypt({creds,keys});
+  queue=queue.catch(()=>{}).then(()=>pool.query(
+   "UPDATE whatsapp_devices SET session_encrypted=$1,last_activity_at=now(),last_error=NULL WHERE id=$2",
+   [encrypted,id]
+  ));
+  return queue;
+ };
+ return {
+  state:{
+   creds,
+   keys:{
+    async get(type,ids){
+     const out={};
+     for(const key of ids) if(keys[type+":"+key]!==undefined) out[key]=keys[type+":"+key];
+     return out;
+    },
+    async set(data){
+     for(const [type,entries] of Object.entries(data))
+      for(const [key,value] of Object.entries(entries)){
+       const k=type+":"+key;
+       if(value==null) delete keys[k]; else keys[k]=value;
+      }
+     await persist();
+    }
+   }
+  },
+  snapshot:()=>({creds,keys}),
+  persist
+ };
+}
+async function startDevice(id,saved){
+ if(starts.has(id)) return starts.get(id);
+ const task=(async()=>{
+ const previous=runtimes.get(id);
+ const rt={state:"starting",qr:null,lastConnectedAt:null,lastError:null,socket:null,auth:null,retryTimer:null};
+ // Publish the new runtime before stopping the old socket. Its late close event
+ // must not schedule another reconnect and create competing WhatsApp sessions.
+ runtimes.set(id,rt);
+ if(previous?.retryTimer) clearTimeout(previous.retryTimer);
+ if(previous?.auth) await previous.auth.persist().catch(()=>{});
+ if(previous?.socket){try{previous.socket.end(undefined);}catch{}}
+ const auth=makeAuthState(id,saved);
+ rt.auth=auth;
+ rt.socket=makeWASocket({
+  auth:auth.state,
+  browser:Browsers.ubuntu("OTPProvider"),
+  printQRInTerminal:false,
+  syncFullHistory:false,
+  markOnlineOnConnect:false,
+  connectTimeoutMs:30000,
+  defaultQueryTimeoutMs:30000,
+  logger:pino({level:"silent"}),
+  keepAliveIntervalMs:20000
+ });
+ rt.socket.ev.on("creds.update",()=>{
+  if(runtimes.get(id)!==rt) return;
+  auth.persist().catch(()=>{
+   if(runtimes.get(id)===rt){rt.lastError="auth_persist_failed";}
+  });
+ });
+ rt.socket.ev.on("connection.update",async u=>{
+  if(runtimes.get(id)!==rt) return;
+  try{
+   if(u.qr){
+    rt.qr=await QRCode.toDataURL(u.qr,{width:320,margin:2});
+    rt.state="pairing";
+    await updateDevice(id,{state:"pairing",routing_eligible:false,last_error:null});
+   }
+   if(u.connection==="open"){
+    // Flush the latest credentials before reporting a stable connection.
+    await auth.persist();
+    if(runtimes.get(id)!==rt) return;
+    rt.state="connected";
+    rt.qr=null;
+    rt.lastConnectedAt=new Date().toISOString();
+    rt.lastError=null;
+    await updateDevice(id,{state:"connected",routing_eligible:false,last_error:null});
+   }
+   if(u.connection==="close"){
+    // Pairing commonly causes a restart-required close. Persist the credentials
+    // emitted during pairing before constructing the replacement socket.
+    await auth.persist();
+    if(runtimes.get(id)!==rt) return;
+    const code=u.lastDisconnect?.error?.output?.statusCode;
+    rt.state=code===DisconnectReason.loggedOut?"logged_out":"disconnected";
+    rt.qr=null;
+    rt.lastError="connection_closed";
+    await updateDevice(id,{state:rt.state==="logged_out"?"error":"disconnected",routing_eligible:false,last_error:rt.lastError});
+    if(code!==DisconnectReason.loggedOut){
+     rt.retryTimer=setTimeout(()=>{
+      if(runtimes.get(id)===rt)
+       startDevice(id,auth.snapshot()).catch(async()=>{
+        if(runtimes.get(id)===rt){rt.state="error";rt.lastError="reconnect_failed";await updateDevice(id,{state:"error",last_error:rt.lastError}).catch(()=>{});}
+       });
+     },code===DisconnectReason.restartRequired?1000:5000);
+     rt.retryTimer.unref?.();
+    }
+   }
+  }catch{
+   if(runtimes.get(id)===rt){
+    rt.state="error";
+    rt.lastError="device_state_update_failed";
+    await updateDevice(id,{state:"error",routing_eligible:false,last_error:rt.lastError}).catch(()=>{});
+   }
+  }
+ });
+ return rt;
+ })();
+ starts.set(id,task);
+ try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
+}
+async function init(){await pool.query("SELECT 1");const p=await pool.query("INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{\"gateway\":\"railway\",\"customerSendingEnabled\":false,\"experimental\":true}'::jsonb) ON CONFLICT(key) DO UPDATE SET config=providers.config||EXCLUDED.config RETURNING id");providerId=p.rows[0].id;
+// One-time migration from the legacy Bun gateway tables. Auth material is
+// immediately encrypted with SESSION_ENCRYPTION_KEY before entering the
+// platform's canonical whatsapp_devices table.
+const legacy=await pool.query("SELECT id,label,creds FROM wa_gateway_devices ORDER BY created_at").catch(()=>({rows:[]}));
+for(const old of legacy.rows){
+ const exists=await pool.query("SELECT id FROM whatsapp_devices WHERE id=$1",[old.id]);
+ if(exists.rowCount) continue;
+ const stored=await pool.query("SELECT k,v FROM wa_gateway_kv WHERE k LIKE $1",[old.id+":%"]);
+ const keys={};
+ for(const item of stored.rows){
+  const suffix=item.k.slice(String(old.id).length+1);
+  const split=suffix.indexOf(":");
+  if(split>0) keys[suffix.slice(0,split)+":"+suffix.slice(split+1)]=item.v;
+ }
+ const session=encrypt({creds:old.creds||initAuthCreds(),keys});
+ await pool.query("INSERT INTO whatsapp_devices(id,provider_id,label,state,session_encrypted,routing_eligible) VALUES($1,$2,$3,'disconnected',$4,false) ON CONFLICT(id) DO NOTHING",[old.id,providerId,old.label||"WhatsApp Main",session]);
+}
+let d=await pool.query("SELECT id FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at LIMIT 1",[providerId]);if(!d.rowCount){d=await pool.query("INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible) VALUES($1,'WhatsApp Main','disconnected',false) RETURNING id",[providerId]);}const all=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);for(const row of all.rows)startDevice(row.id,decrypt(row.session_encrypted)).catch(()=>updateDevice(row.id,{state:"error",last_error:"startup_failed"}));}
+const server=http.createServer(async(req,res)=>{const url=new URL(req.url,"http://localhost");if(req.method==="GET"&&(url.pathname==="/"||url.pathname==="/health"))return json(res,200,{ok:true,service:"otp-whatsapp-gateway",devices:runtimes.size});if(!authorized(req))return json(res,401,{error:"unauthorized"});if(!allowRate(req))return json(res,429,{error:"rate_limited"});
+if(req.method==="GET"&&url.pathname==="/admin/devices"){const r=await pool.query("SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);return json(res,200,r.rows);}
+const match=url.pathname.match(/^\/admin\/devices\/([0-9a-f-]{36})(?:\/(qr|reconnect))?$/i);if(match){const id=match[1],action=match[2];const row=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE id=$1 AND provider_id=$2",[id,providerId]);if(!row.rowCount)return json(res,404,{error:"device_not_found"});if(req.method==="GET"&&action==="qr"){const rt=runtimes.get(id);return json(res,200,{state:rt?.state||"disconnected",qr:rt?.qr||null,lastConnectedAt:rt?.lastConnectedAt||null,lastError:rt?.lastError||null});}if(req.method==="POST"&&action==="reconnect"){const rt=await startDevice(id,decrypt(row.rows[0].session_encrypted));return json(res,202,{ok:true,state:rt.state});}if(req.method==="DELETE"&&!action){const rt=runtimes.get(id);if(rt?.socket){try{rt.socket.logout();}catch{}try{rt.socket.end(undefined);}catch{}}runtimes.delete(id);await pool.query("DELETE FROM whatsapp_devices WHERE id=$1",[id]);return json(res,200,{ok:true});}}
+if(req.method==="GET"&&url.pathname==="/admin/status"){const rows=await pool.query("SELECT id,state FROM whatsapp_devices WHERE provider_id=$1",[providerId]);return json(res,200,{devices:rows.rows.map(x=>({id:x.id,state:runtimes.get(x.id)?.state||x.state})),customerSendingEnabled:WA_CUSTOMER_SEND_ENABLED==="true"});}
+if(req.method==="POST"&&url.pathname==="/admin/test-send"){if(WA_ADMIN_TEST_SEND_ENABLED!=="true")return json(res,423,{error:"admin_test_sending_disabled"});let b;try{b=await readBody(req);}catch{return json(res,400,{error:"invalid_request"});}const id=String(b.deviceId||""),rt=runtimes.get(id),to=String(b.to||"").replace(/[^0-9]/g,""),message=String(b.message||"").trim(),allow=WA_TEST_RECIPIENTS.split(",").map(x=>x.replace(/[^0-9]/g,""));if(!rt?.socket||rt.state!=="connected")return json(res,503,{error:"whatsapp_not_connected"});if(!/^\d{8,15}$/.test(to)||!allow.includes(to)||!message||message.length>500)return json(res,400,{error:"recipient_not_allowlisted_or_invalid_message"});try{const result=await rt.socket.sendMessage(to+"@s.whatsapp.net",{text:message});return json(res,202,{accepted:true,messageId:result?.key?.id||null,note:"Submission is not confirmed delivery; no wallet charge is performed."});}catch{return json(res,502,{error:"send_failed"});}}
+if(req.method==="POST"&&url.pathname==="/v1/send"){if(WA_CUSTOMER_SEND_ENABLED!=="true")return json(res,423,{error:"customer_sending_disabled"});return json(res,503,{error:"live_delivery_receipts_not_implemented"});}return json(res,404,{error:"not_found"});});
+async function readBody(req){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>8192)throw Error("body_too_large");chunks.push(c);}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};}
+await init();server.listen(Number(PORT),"0.0.0.0");process.on("SIGTERM",async()=>{for(const rt of runtimes.values())try{rt.socket?.end(undefined);}catch{}try{await ownerLock.query("SELECT pg_advisory_unlock(hashtext($1))",["otpprovider:whatsapp-gateway:singleton"]);}catch{}ownerLock.release();await pool.end();process.exit(0);});
