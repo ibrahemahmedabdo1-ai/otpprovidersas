@@ -727,6 +727,31 @@ paths:
         "200": {description: OK}
         "401": {description: Not signed in}
         "403": {description: Role not allowed, or MFA not completed}
+  /v1/admin/users/{id}/credit:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Grant paid or promotional wallet credit to an active customer (Super Admin only)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountUsd, bucket, reason]
+              properties:
+                amountUsd: {type: string, example: "5.00", description: "0.01 to 10000 USD, at most 2 decimals"}
+                bucket: {type: string, enum: [paid, promo]}
+                reason: {type: string, description: "5-500 characters"}
+      responses:
+        "200": {description: Credit posted to immutable ledger}
+        "400": {description: Validation failed}
+        "401": {description: Not signed in}
+        "403": {description: Super Admin only}
+        "404": {description: Customer or wallet not found}
+        "409": {description: Customer not active}
   /v1/admin/audit:
     get:
       tags: ["Staff: admin"]
