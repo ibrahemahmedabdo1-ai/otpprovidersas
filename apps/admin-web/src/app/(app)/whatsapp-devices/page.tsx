@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Empty, Loading } from "../../../../components/ui";
-import { useApp } from "../../../../components/Providers";
-import { api, errorText } from "../../../../lib/api";
+import { Alert, Empty, Loading } from "../../../components/ui";
+import { useApp } from "../../../components/Providers";
+import { api, errorText } from "../../../lib/api";
 
 type Device = { id: string; label: string; state: string; routingEligible: boolean; priority: number; lastActivityAt: string | null; lastError: string | null; createdAt: string };
 export default function WhatsappDevices() {
