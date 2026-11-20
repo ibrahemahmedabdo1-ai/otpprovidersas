@@ -11,6 +11,7 @@ import { sha256 } from "../auth/tokens";
 import { isUuid, parseLocale } from "../auth/validators";
 import type { ApiKeyContext } from "./api-key.guard";
 import { decideResend, decideVerify } from "./otp-rules";
+import { LiveOtpDeliveryService } from "./live-otp-delivery.service";
 import { isOtpCode, maskRecipient, parseIdempotencyKey, parseRecipient, type Channel } from "./recipient";
 
 const SANDBOX_NOTE = "Sandbox mode: no message was sent and no balance was charged.";
@@ -18,7 +19,7 @@ const RECIPIENT_WINDOW_LIMIT = 5;          // sends per recipient per 10 minutes
 
 @Injectable()
 export class OtpService {
-  constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
+  constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig, private readonly live: LiveOtpDeliveryService) {}
 
   private tooMany(error: string, retryAfterSec?: number) {
     return new HttpException({ error, ...(retryAfterSec ? { retryAfterSec } : {}) }, HttpStatus.TOO_MANY_REQUESTS);
@@ -36,11 +37,12 @@ export class OtpService {
     if (!locale.ok) throw new BadRequestException({ error: "validation_failed", message: locale.error });
     const idem = parseIdempotencyKey(idemHeader);
     if (!idem.ok) throw new BadRequestException({ error: "validation_failed", message: idem.error });
-    this.requireTest(k);
     const { channel, to } = rec.value;
     if ((channel === "email" && !k.emailEnabled) || (channel === "whatsapp" && !k.whatsappEnabled)) {
       throw new ForbiddenException({ error: "channel_disabled", message: `The ${channel} channel is disabled for this project.` });
     }
+    if (k.mode === "live") return this.live.send(k, { channel, to, locale: locale.value }, idemHeader, correlationId, ip);
+    this.requireTest(k);
 
     const rhash = hmacHex(this.cfg.otpPepper, `recipient:${channel}:${to}`);
     if (k.dailyLimit !== null) {
@@ -115,6 +117,7 @@ export class OtpService {
   async resend(k: ApiKeyContext, body: unknown, ip: string | undefined) {
     const id = (body as { id?: unknown } | null)?.id;
     if (!isUuid(id)) throw new NotFoundException({ error: "not_found" });
+    if (k.mode === "live") return this.live.resend(k, id, ip);
     this.requireTest(k);
     const code = generateOtp(k.otpLength);
     const result = await this.db.tx(async (c) => {
