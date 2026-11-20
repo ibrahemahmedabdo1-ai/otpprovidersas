@@ -17,8 +17,117 @@ function json(res,status,body){res.writeHead(status,{"content-type":"application
 function authorized(req){const a=Buffer.from(req.headers.authorization||""),b=Buffer.from("Bearer "+GATEWAY_TOKEN);return a.length===b.length&&crypto.timingSafeEqual(a,b);}
 function allowRate(req,limit=60){const ip=req.socket.remoteAddress||"unknown",now=Date.now(),e=rate.get(ip)||{start:now,count:0};if(now-e.start>60000){e.start=now;e.count=0;}e.count++;rate.set(ip,e);return e.count<=limit;}
 async function updateDevice(id,patch){const keys=Object.keys(patch);if(!keys.length)return;const sets=keys.map((k,i)=>k+"=$"+(i+1)).join(",");await pool.query("UPDATE whatsapp_devices SET "+sets+",last_activity_at=now() WHERE id=$"+(keys.length+1),[...Object.values(patch),id]);}
-function makeAuthState(id,saved){const creds=saved?.creds||initAuthCreds(),keys=saved?.keys||{};let queue=Promise.resolve();const persist=()=>{queue=queue.then(()=>pool.query("UPDATE whatsapp_devices SET session_encrypted=$1,last_activity_at=now(),last_error=NULL WHERE id=$2",[encrypt({creds,keys}),id]));return queue;};return {state:{creds,keys:{async get(type,ids){const out={};for(const key of ids)if(keys[type+":"+key]!==undefined)out[key]=keys[type+":"+key];return out;},async set(data){for(const [type,entries] of Object.entries(data))for(const [key,value] of Object.entries(entries)){const k=type+":"+key;if(value==null)delete keys[k];else keys[k]=value;}await persist();}}},snapshot:()=>({creds,keys}),persist};}
-async function startDevice(id,saved){const old=runtimes.get(id);if(old?.socket){try{old.socket.end(undefined);}catch{}}const rt={state:"starting",qr:null,lastConnectedAt:null,lastError:null,socket:null};runtimes.set(id,rt);const auth=makeAuthState(id,saved);rt.socket=makeWASocket({auth:auth.state,browser:Browsers.ubuntu("OTPProvider"),printQRInTerminal:false,syncFullHistory:false,markOnlineOnConnect:false,connectTimeoutMs:30000,defaultQueryTimeoutMs:30000,logger:pino({level:"silent"})});rt.socket.ev.on("creds.update",()=>auth.persist().catch(()=>{rt.lastError="auth_persist_failed";}));rt.socket.ev.on("connection.update",async u=>{try{if(u.qr){rt.qr=await QRCode.toDataURL(u.qr,{width:320,margin:2});rt.state="pairing";await updateDevice(id,{state:"pairing",routing_eligible:false,last_error:null});}if(u.connection==="open"){rt.state="connected";rt.qr=null;rt.lastConnectedAt=new Date().toISOString();rt.lastError=null;await auth.persist();await updateDevice(id,{state:"connected",routing_eligible:false,last_error:null});}if(u.connection==="close"){const code=u.lastDisconnect?.error?.output?.statusCode;rt.state=code===DisconnectReason.loggedOut?"logged_out":"disconnected";rt.qr=null;rt.lastError="connection_closed";await updateDevice(id,{state:rt.state==="logged_out"?"error":"disconnected",routing_eligible:false,last_error:rt.lastError});if(code!==DisconnectReason.loggedOut)setTimeout(()=>startDevice(id,auth.snapshot()).catch(()=>{rt.state="error";}),5000).unref();}}catch{rt.state="error";rt.lastError="device_state_update_failed";}});return rt;}
+function makeAuthState(id,saved){
+ const creds=saved?.creds||initAuthCreds(),keys=saved?.keys||{};
+ let queue=Promise.resolve();
+ const persist=()=>{
+  // Recover the write queue after a transient database error; a rejected promise
+  // must not permanently prevent later credential updates from being saved.
+  const encrypted=encrypt({creds,keys});
+  queue=queue.catch(()=>{}).then(()=>pool.query(
+   "UPDATE whatsapp_devices SET session_encrypted=$1,last_activity_at=now(),last_error=NULL WHERE id=$2",
+   [encrypted,id]
+  ));
+  return queue;
+ };
+ return {
+  state:{
+   creds,
+   keys:{
+    async get(type,ids){
+     const out={};
+     for(const key of ids) if(keys[type+":"+key]!==undefined) out[key]=keys[type+":"+key];
+     return out;
+    },
+    async set(data){
+     for(const [type,entries] of Object.entries(data))
+      for(const [key,value] of Object.entries(entries)){
+       const k=type+":"+key;
+       if(value==null) delete keys[k]; else keys[k]=value;
+      }
+     await persist();
+    }
+   }
+  },
+  snapshot:()=>({creds,keys}),
+  persist
+ };
+}
+async function startDevice(id,saved){
+ const previous=runtimes.get(id);
+ const rt={state:"starting",qr:null,lastConnectedAt:null,lastError:null,socket:null,auth:null,retryTimer:null};
+ // Publish the new runtime before stopping the old socket. Its late close event
+ // must not schedule another reconnect and create competing WhatsApp sessions.
+ runtimes.set(id,rt);
+ if(previous?.retryTimer) clearTimeout(previous.retryTimer);
+ if(previous?.auth) await previous.auth.persist().catch(()=>{});
+ if(previous?.socket){try{previous.socket.end(undefined);}catch{}}
+ const auth=makeAuthState(id,saved);
+ rt.auth=auth;
+ rt.socket=makeWASocket({
+  auth:auth.state,
+  browser:Browsers.ubuntu("OTPProvider"),
+  printQRInTerminal:false,
+  syncFullHistory:false,
+  markOnlineOnConnect:false,
+  connectTimeoutMs:30000,
+  defaultQueryTimeoutMs:30000,
+  logger:pino({level:"silent"})
+ });
+ rt.socket.ev.on("creds.update",()=>{
+  if(runtimes.get(id)!==rt) return;
+  auth.persist().catch(()=>{
+   if(runtimes.get(id)===rt){rt.lastError="auth_persist_failed";}
+  });
+ });
+ rt.socket.ev.on("connection.update",async u=>{
+  if(runtimes.get(id)!==rt) return;
+  try{
+   if(u.qr){
+    rt.qr=await QRCode.toDataURL(u.qr,{width:320,margin:2});
+    rt.state="pairing";
+    await updateDevice(id,{state:"pairing",routing_eligible:false,last_error:null});
+   }
+   if(u.connection==="open"){
+    // Flush the latest credentials before reporting a stable connection.
+    await auth.persist();
+    if(runtimes.get(id)!==rt) return;
+    rt.state="connected";
+    rt.qr=null;
+    rt.lastConnectedAt=new Date().toISOString();
+    rt.lastError=null;
+    await updateDevice(id,{state:"connected",routing_eligible:false,last_error:null});
+   }
+   if(u.connection==="close"){
+    // Pairing commonly causes a restart-required close. Persist the credentials
+    // emitted during pairing before constructing the replacement socket.
+    await auth.persist();
+    if(runtimes.get(id)!==rt) return;
+    const code=u.lastDisconnect?.error?.output?.statusCode;
+    rt.state=code===DisconnectReason.loggedOut?"logged_out":"disconnected";
+    rt.qr=null;
+    rt.lastError="connection_closed";
+    await updateDevice(id,{state:rt.state==="logged_out"?"error":"disconnected",routing_eligible:false,last_error:rt.lastError});
+    if(code!==DisconnectReason.loggedOut){
+     rt.retryTimer=setTimeout(()=>{
+      if(runtimes.get(id)===rt)
+       startDevice(id,auth.snapshot()).catch(async()=>{
+        if(runtimes.get(id)===rt){rt.state="error";rt.lastError="reconnect_failed";await updateDevice(id,{state:"error",last_error:rt.lastError}).catch(()=>{});}
+       });
+     },code===DisconnectReason.restartRequired?1000:5000);
+     rt.retryTimer.unref?.();
+    }
+   }
+  }catch{
+   if(runtimes.get(id)===rt){
+    rt.state="error";
+    rt.lastError="device_state_update_failed";
+    await updateDevice(id,{state:"error",routing_eligible:false,last_error:rt.lastError}).catch(()=>{});
+   }
+  }
+ });
+ return rt;
+}
 async function init(){await pool.query("SELECT 1");const p=await pool.query("INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{\"gateway\":\"railway\",\"customerSendingEnabled\":false,\"experimental\":true}'::jsonb) ON CONFLICT(key) DO UPDATE SET config=providers.config||EXCLUDED.config RETURNING id");providerId=p.rows[0].id;let d=await pool.query("SELECT id FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at LIMIT 1",[providerId]);if(!d.rowCount){d=await pool.query("INSERT INTO whatsapp_devices(provider_id,label,state,routing_eligible) VALUES($1,'WhatsApp Main','disconnected',false) RETURNING id",[providerId]);}const all=await pool.query("SELECT id,session_encrypted FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);for(const row of all.rows)startDevice(row.id,decrypt(row.session_encrypted)).catch(()=>updateDevice(row.id,{state:"error",last_error:"startup_failed"}));}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,"http://localhost");if(req.method==="GET"&&(url.pathname==="/"||url.pathname==="/health"))return json(res,200,{ok:true,service:"otp-whatsapp-gateway",devices:runtimes.size});if(!authorized(req))return json(res,401,{error:"unauthorized"});if(!allowRate(req))return json(res,429,{error:"rate_limited"});
 if(req.method==="GET"&&url.pathname==="/admin/devices"){const r=await pool.query("SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[providerId]);return json(res,200,r.rows);}
