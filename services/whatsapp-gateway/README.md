@@ -17,8 +17,12 @@ A separately deployed, QR-paired WhatsApp Web adapter for the OTPProvider platfo
 ## Routes
 
 - `GET /health` — non-sensitive health probe.
-- `GET /pair/<PAIRING_VIEW_KEY>` — QR pairing page; scan with WhatsApp > Linked devices > Link a device.
-- `GET /admin/status` — bearer-authenticated connection status.
+- QR pairing is exposed only through authenticated Admin APIs; QR images are not served on a public pairing URL.
+- `GET /admin/devices` — list device metadata (never returns encrypted sessions).
+- `GET /admin/devices/:id/qr` — current QR and state for one device.
+- `POST /admin/devices/:id/reconnect` — reconnect one device.
+- `DELETE /admin/devices/:id` — log out and delete one linked device and its saved session.
+- `GET /admin/status` — bearer-authenticated connection status for all devices.
 - `POST /admin/reconnect` — bearer-authenticated reconnect.
 - `POST /admin/test-send` — bearer-authenticated, disabled by default, allowlisted test recipient only.
 - `POST /v1/send` — customer route; returns 423 unless the explicit customer-send flag is enabled.
@@ -27,4 +31,4 @@ A successful socket submission is not proof of delivery. Do not mark an OTP deli
 
 ## Deploy
 
-Deploy this directory with the included Dockerfile on a persistent service. Keep one replica and do not attach ephemeral storage; encrypted session state is in Neon. Do not enable customer sending during QR pairing or initial validation.
+Deploy this directory with the included Dockerfile on a persistent service. Keep one replica and do not attach ephemeral storage; encrypted session state is in Neon. The Admin API service must be configured with `WHATSAPP_GATEWAY_URL` (the Railway public HTTPS domain) and `WHATSAPP_GATEWAY_TOKEN` (same value as gateway `GATEWAY_TOKEN`). Do not enable customer sending during QR pairing or initial validation.
