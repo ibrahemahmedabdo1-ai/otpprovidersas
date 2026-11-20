@@ -25,7 +25,9 @@ export class WhatsAppDevicesService {
   }
   async list(ctx:AuthContext) {
     this.admin(ctx);
-    const r=await this.db.pool.query("SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices ORDER BY created_at");
+    const p=await this.db.pool.query("SELECT id FROM providers WHERE key=$1 LIMIT 1",["whatsapp_linked_device"]);
+    if(!p.rowCount) return [];
+    const r=await this.db.pool.query("SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices WHERE provider_id=$1 ORDER BY created_at",[p.rows[0].id]);
     return r.rows.map(x=>({...x,session_encrypted:undefined}));
   }
   async create(ctx:AuthContext,input:unknown,ip?:string) {
