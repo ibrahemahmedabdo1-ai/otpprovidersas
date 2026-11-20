@@ -228,3 +228,10 @@ html[dir="rtl"] .bubble, [dir="rtl"] .bubble { border-radius: 10px 0 10px 10px; 
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .bubble { opacity: 1; } .wa-typing { display: none; }
 }
+
+/* RTL checkmarks: mirror the stroke angle when the logical start edge is on the right. */
+:dir(rtl) .plan li::before,
+:dir(rtl) .dev li::before,
+:dir(rtl) .ticks li::before {
+  transform: rotate(45deg);
+}
