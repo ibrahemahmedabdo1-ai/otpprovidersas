@@ -27,11 +27,13 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 import { WhatsAppTemplatesController } from "./admin/whatsapp-templates.controller";
 import { WhatsAppTemplatesService } from "./admin/whatsapp-templates.service";
+import { WhatsAppDevicesController } from "./admin/whatsapp-devices.controller";
+import { WhatsAppDevicesService } from "./admin/whatsapp-devices.service";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, WhatsAppTemplatesController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, WhatsAppTemplatesController, WhatsAppDevicesController],
   providers: [
-    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, WhatsAppTemplatesService,
+    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, WhatsAppTemplatesService, WhatsAppDevicesService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
