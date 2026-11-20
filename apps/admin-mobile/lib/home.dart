@@ -20,7 +20,7 @@ class _HomeState extends State<Home> {
     if (isSuper) ('Approvals', Icons.verified_outlined, const ApprovalsTab()),
     ('Users', Icons.people_outline, UsersTab(isSuper: isSuper, myId: myId)),
     ('Organizations', Icons.business_outlined, OrgsTab(isSuper: isSuper)),
-    ('Prices', Icons.sell_outlined, PricesTab(isSuper: isSuper)),
+    ('Prices', Icons.sell_outlined, PricingTab(isSuper: isSuper)),
     ('Packages', Icons.inventory_2_outlined, PackagesTab(isSuper: isSuper)),
     ('Providers', Icons.hub_outlined, ProvidersTab(isSuper: isSuper)),
     ('Tickets', Icons.support_agent_outlined, const TicketsTab()),
@@ -255,56 +255,6 @@ class _ProvidersState extends State<ProvidersTab> {
               TextButton(onPressed: () => _set('${p['id']}', {'maintenance': p['maintenance'] != true}), child: Text(p['maintenance'] == true ? 'End maintenance' : 'Maintenance')),
             ]),
           ]))),
-      ]),
-    );
-  }
-}
-
-class PricesTab extends StatefulWidget {
-  final bool isSuper;
-  const PricesTab({super.key, required this.isSuper});
-  @override
-  State<PricesTab> createState() => _PricesState();
-}
-
-class _PricesState extends State<PricesTab> {
-  List<dynamic>? rows;
-  String err = '';
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    final r = await Api.get('/v1/admin/prices');
-    if (!mounted) return;
-    setState(() { if (r.ok) { rows = r.list; err = ''; } else { rows = []; err = errorText(r); } });
-  }
-
-  Future<void> _approve(String id) async {
-    final r = await Api.post('/v1/admin/prices/$id/approve', {});
-    if (!mounted) return;
-    if (!r.ok) setState(() => err = errorText(r));
-    await _load();
-  }
-
-  String _usd(dynamic micro) => '\$' + (((num.tryParse('$micro') ?? 0) / 1000000).toString());
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('Per-message prices. New prices wait for Super Admin approval. Propose prices from the web console.'),
-        const SizedBox(height: 12),
-        if (err.isNotEmpty) Banner2(err),
-        if (rows == null) const LinearProgressIndicator(),
-        if (rows != null && rows!.isEmpty) const Text('No prices yet.'),
-        for (final p in rows ?? <dynamic>[])
-          Card(child: ListTile(
-            title: Text('${p['channel']}  ${p['country']}  ${_usd(p['unitPriceMicroUsd'])}'),
-            subtitle: Text('v${p['version']}  -  ${p['status']}'),
-            trailing: (p['status'] == 'pending_approval' && widget.isSuper) ? FilledButton(onPressed: () => _approve('${p['id']}'), child: const Text('Approve')) : null,
-          )),
       ]),
     );
   }

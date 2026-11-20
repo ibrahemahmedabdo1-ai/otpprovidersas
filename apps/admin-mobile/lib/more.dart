@@ -12,7 +12,7 @@ class RemoteList extends StatefulWidget {
   final String intro;
   final String empty;
   final Widget Function(BuildContext, Map<String, dynamic>, Future<void> Function()) item;
-  final Widget? header;
+  final Widget Function(BuildContext, Future<void> Function())? header;
   const RemoteList({super.key, required this.path, required this.intro, required this.empty, required this.item, this.header});
   @override
   State<RemoteList> createState() => _RemoteListState();
@@ -40,7 +40,7 @@ class _RemoteListState extends State<RemoteList> {
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), children: [
         if (widget.intro.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.intro)),
-        if (widget.header != null) widget.header!,
+        if (widget.header != null) widget.header!(context, _load),
         if (err.isNotEmpty) Banner2(err),
         if (rows == null) const LinearProgressIndicator(),
         if (rows != null && rows!.isEmpty && err.isEmpty) Text(widget.empty),
@@ -85,6 +85,7 @@ class OrgsTab extends StatelessWidget {
       Text('${o['name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
       Text('${o['owner']}  -  ${o['country']}  -  ${o['status']}  -  risk ${o['riskLevel']}'),
       if (isSuper) Wrap(spacing: 8, children: [
+        TextButton(onPressed: () async { final n = await _ask(ctx, 'Rename organization', '${o['name']}'); if (n != null && n.trim().length >= 2 && ctx.mounted) await _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'name': n.trim()}, reload); }, child: const Text('Rename')),
         TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'status': o['status'] == 'active' ? 'suspended' : 'active'}, reload), child: Text(o['status'] == 'active' ? 'Suspend' : 'Reactivate')),
         for (final r in const ['low', 'normal', 'elevated', 'high']) if (r != o['riskLevel']) TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'riskLevel': r}, reload), child: Text('Risk: $r')),
       ]),
@@ -97,7 +98,8 @@ class PackagesTab extends StatelessWidget {
   const PackagesTab({super.key, required this.isSuper});
   @override
   Widget build(BuildContext context) => RemoteList(
-    path: '/v1/admin/packages', intro: 'Top-up packages. Only a Super Admin can approve and activate. Create new packages in the web console.', empty: 'No packages yet.',
+    path: '/v1/admin/packages', intro: 'Top-up packages. New packages start inactive. Only a Super Admin can approve and activate.', empty: 'No packages yet.',
+    header: (ctx, reload) => _PackageForm(onSaved: reload),
     item: (ctx, p, reload) => Card(child: ListTile(
       title: Text('${p['name']}'),
       subtitle: Text('Price ${_usd6(p['priceMicroUsd'])}  -  credit ${_usd6(p['creditMicroUsd'])}  -  ${p['active'] == true ? 'active' : 'inactive'}'),
@@ -224,4 +226,98 @@ class _CompanyState extends State<CompanyTab> {
       if (en) FilledButton(onPressed: _save, child: const Text('Save changes')),
     ]);
   }
+}
+
+
+Future<String?> _ask(BuildContext context, String title, String initial) {
+  final c = TextEditingController(text: initial);
+  return showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+    title: Text(title),
+    content: TextField(controller: c, autofocus: true, maxLength: 120),
+    actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, c.text), child: const Text('Save'))],
+  ));
+}
+
+class _PackageForm extends StatefulWidget {
+  final Future<void> Function() onSaved;
+  const _PackageForm({required this.onSaved});
+  @override
+  State<_PackageForm> createState() => _PackageFormState();
+}
+
+class _PackageFormState extends State<_PackageForm> {
+  final name = TextEditingController(), price = TextEditingController(), credit = TextEditingController();
+  String err = '';
+
+  Future<void> _save() async {
+    final p = int.tryParse(price.text.trim()), c = int.tryParse(credit.text.trim());
+    if (name.text.trim().length < 2 || p == null || c == null) { setState(() => err = 'Enter a name and whole-dollar price and credit.'); return; }
+    final r = await Api.post('/v1/admin/packages', {'name': name.text.trim(), 'priceUsd': p, 'creditUsd': c});
+    if (!mounted) return;
+    if (r.ok) { name.clear(); price.clear(); credit.clear(); setState(() => err = ''); await widget.onSaved(); } else { setState(() => err = errorText(r)); }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text('Add package', style: TextStyle(fontWeight: FontWeight.w700)),
+    if (err.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Banner2(err)),
+    TextField(controller: name, maxLength: 80, decoration: const InputDecoration(labelText: 'Name')),
+    Row(children: [
+      Expanded(child: TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Price USD'))),
+      const SizedBox(width: 12),
+      Expanded(child: TextField(controller: credit, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Credit USD'))),
+    ]),
+    const SizedBox(height: 12),
+    FilledButton(onPressed: _save, child: const Text('Add package')),
+  ])));
+}
+
+class PricingTab extends StatelessWidget {
+  final bool isSuper;
+  const PricingTab({super.key, required this.isSuper});
+  @override
+  Widget build(BuildContext context) => RemoteList(
+    path: '/v1/admin/prices', intro: 'Per-message prices. New prices wait for Super Admin approval; approving retires the previous active price.', empty: 'No prices yet.',
+    header: (ctx, reload) => _PriceForm(onSaved: reload),
+    item: (ctx, p, reload) => Card(child: ListTile(
+      title: Text('${p['channel']}  ${p['country']}  ${_usd6(p['unitPriceMicroUsd'])}'),
+      subtitle: Text('v${p['version']}  -  ${'${p['status']}'.replaceAll('_', ' ')}'),
+      trailing: (p['status'] == 'pending_approval' && isSuper) ? FilledButton(onPressed: () => _post(ctx, '/v1/admin/prices/${p['id']}/approve', {}, reload), child: const Text('Approve')) : null,
+    )),
+  );
+}
+
+class _PriceForm extends StatefulWidget {
+  final Future<void> Function() onSaved;
+  const _PriceForm({required this.onSaved});
+  @override
+  State<_PriceForm> createState() => _PriceFormState();
+}
+
+class _PriceFormState extends State<_PriceForm> {
+  String channel = 'email';
+  final country = TextEditingController(text: '*'), usd = TextEditingController();
+  String err = '';
+
+  Future<void> _save() async {
+    final v = double.tryParse(usd.text.trim());
+    if (v == null || v < 0) { setState(() => err = 'Enter the price in USD, for example 0.02.'); return; }
+    final r = await Api.post('/v1/admin/prices', {'channel': channel, 'country': country.text.trim().isEmpty ? '*' : country.text.trim(), 'unitPriceMicroUsd': (v * 1000000).round()});
+    if (!mounted) return;
+    if (r.ok) { usd.clear(); setState(() => err = ''); await widget.onSaved(); } else { setState(() => err = errorText(r)); }
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text('Propose price', style: TextStyle(fontWeight: FontWeight.w700)),
+    if (err.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Banner2(err)),
+    DropdownButtonFormField<String>(initialValue: channel, decoration: const InputDecoration(labelText: 'Channel'), items: const [DropdownMenuItem(value: 'email', child: Text('Email')), DropdownMenuItem(value: 'whatsapp', child: Text('WhatsApp'))], onChanged: (v) => setState(() => channel = v ?? 'email')),
+    Row(children: [
+      Expanded(child: TextField(controller: country, maxLength: 2, decoration: const InputDecoration(labelText: 'Country (* = all)'))),
+      const SizedBox(width: 12),
+      Expanded(child: TextField(controller: usd, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'USD per message'))),
+    ]),
+    const SizedBox(height: 12),
+    FilledButton(onPressed: _save, child: const Text('Propose price')),
+  ])));
 }
