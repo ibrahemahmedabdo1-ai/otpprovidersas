@@ -24,7 +24,7 @@ export default function Organizations() {
     await load();
   }
   async function verify(id: string, status: "approved" | "rejected") {
-    setErr();
+    setErr("");
     const r = await api("POST", `/v1/admin/organizations/${id}/verification`, { status });
     if (!r.ok) setErr(errorText(r));
     await load();
