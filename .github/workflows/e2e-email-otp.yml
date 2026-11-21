@@ -1,0 +1,31 @@
+name: E2E email OTP (manual)
+# The authorized test recipient is read from the repository variable TEST_RECIPIENT (set by the owner).
+on:
+  workflow_dispatch:
+    inputs:
+      step: { description: "send | verify | get", required: true, default: "send" }
+      key: { description: "Temporary live API key", required: true }
+      id: { description: "OTP request id (verify/get)", required: false }
+      code: { description: "Code received by email (verify)", required: false }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the production API
+        env:
+          STEP: ${{ inputs.step }}
+          KEY: ${{ inputs.key }}
+          TO: ${{ vars.TEST_RECIPIENT }}
+          OTP_ID: ${{ inputs.id }}
+          CODE: ${{ inputs.code }}
+          BASE: ${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
+        run: |
+          echo "::add-mask::$KEY"; [ -n "$CODE" ] && echo "::add-mask::$CODE"; [ -n "$TO" ] && echo "::add-mask::$TO"
+          if [ "$STEP" = send ]; then
+            [ -n "$TO" ] || { echo "Set the TEST_RECIPIENT repository variable first."; exit 1; }
+            curl -sS -w '\nHTTP %{http_code}\n' "$BASE/v1/otp/send" -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -H "Idempotency-Key: e2e-$(date +%s)" -d "{\"channel\":\"email\",\"to\":\"$TO\"}"
+          elif [ "$STEP" = verify ]; then
+            curl -sS -w '\nHTTP %{http_code}\n' "$BASE/v1/otp/verify" -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d "{\"id\":\"$OTP_ID\",\"code\":\"$CODE\"}"
+          elif [ "$STEP" = get ]; then
+            curl -sS -w '\nHTTP %{http_code}\n' "$BASE/v1/otp/$OTP_ID" -H "Authorization: Bearer $KEY"
+          fi
