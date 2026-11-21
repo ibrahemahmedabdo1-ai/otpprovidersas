@@ -779,6 +779,21 @@ paths:
       security: [{sessionCookie: []}, {bearerSession: []}]
       responses:
         "200": {description: OK}
+  /v1/admin/organizations/{id}/verification:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Approve or reject a customer organization for live sending (Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, properties: {status: {type: string, enum: [approved, rejected]}, note: {type: string}}, required: [status]}
+      responses:
+        "200": {description: Recorded}
+        "403": {description: Super Admin only}
   /v1/admin/organizations/{id}/update:
     post:
       tags: ["Staff: admin"]

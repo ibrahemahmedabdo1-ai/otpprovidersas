@@ -28,9 +28,9 @@ export default function ProjectDetail() {
   }, [id, t]);
   useEffect(() => { void load(); }, [load]);
 
-  async function createKey() {
+  async function createKey(mode: "test" | "live" = "test") {
     setBusy(true); setErr(""); setNote("");
-    const r = await api<NewKey>("POST", `/v1/console/projects/${id}/keys`, { body: { mode: "test" } });
+    const r = await api<NewKey>("POST", `/v1/console/projects/${id}/keys`, { body: { mode } });
     setBusy(false);
     if (r.ok && r.data) { setFresh(r.data); setNote(t.project.keyCreatedAnnounce); await load(); } else setErr(errorText(t, r));
   }
@@ -86,8 +86,7 @@ export default function ProjectDetail() {
         )}
         <div className="row" style={{ marginBottom: "1rem" }}>
           <button className="btn" onClick={() => void createKey()} disabled={busy}>{busy ? t.project.creatingKey : t.project.createTest}</button>
-          <button className="btn ghost" disabled aria-describedby="live-note">{t.project.liveButton}</button>
-          <span id="live-note" className="muted">{t.project.liveBody}</span>
+          <button className="btn ghost" onClick={() => void createKey("live")} disabled={busy}>{t.project.liveButton}</button>
         </div>
         {keys === null ? <Loading /> : keys.length === 0 ? <Empty title={t.project.keysEmptyTitle} body={t.project.keysEmptyBody} /> : (
           <div className="tablewrap"><table>
