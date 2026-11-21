@@ -1,99 +1,125 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { API_URL } from "../lib/site";
 
-type Country = { code: string; name: string; ar: string; meta: number; retail: number };
-const COUNTRIES: Country[] = [
-  { code: "EG", name: "Egypt", ar: "مصر", meta: 0.0036, retail: 0.0044 },
-  { code: "IN", name: "India", ar: "الهند", meta: 0.0014, retail: 0.0017 },
-  { code: "CO", name: "Colombia", ar: "كولومبيا", meta: 0.0008, retail: 0.0010 },
-  { code: "TR", name: "Turkey", ar: "تركيا", meta: 0.0009, retail: 0.0011 },
-  { code: "BD", name: "Bangladesh", ar: "بنغلاديش", meta: 0.0037, retail: 0.0045 },
-  { code: "BR", name: "Brazil", ar: "البرازيل", meta: 0.0068, retail: 0.0082 },
-  { code: "SA", name: "Saudi Arabia", ar: "السعودية", meta: 0.0107, retail: 0.0129 },
-  { code: "AE", name: "United Arab Emirates", ar: "الإمارات", meta: 0.0157, retail: 0.0189 },
-  { code: "US", name: "United States", ar: "الولايات المتحدة", meta: 0.0034, retail: 0.0041 },
-  { code: "GB", name: "United Kingdom", ar: "المملكة المتحدة", meta: 0.0220, retail: 0.0264 },
-  { code: "DE", name: "Germany", ar: "ألمانيا", meta: 0.0550, retail: 0.0660 },
-  { code: "FR", name: "France", ar: "فرنسا", meta: 0.0300, retail: 0.0360 },
-  { code: "PK", name: "Pakistan", ar: "باكستان", meta: 0.0150, retail: 0.0180 },
-  { code: "NG", name: "Nigeria", ar: "نيجيريا", meta: 0.0067, retail: 0.0081 },
-  { code: "ZA", name: "South Africa", ar: "جنوب أفريقيا", meta: 0.0095, retail: 0.0114 },
-  { code: "ID", name: "Indonesia", ar: "إندونيسيا", meta: 0.0250, retail: 0.0300 },
-  { code: "MA", name: "Morocco", ar: "المغرب", meta: 0.0230, retail: 0.0276 },
-  { code: "IQ", name: "Iraq", ar: "العراق", meta: 0.0079, retail: 0.0095 },
-  { code: "IL", name: "Israel", ar: "إسرائيل", meta: 0.0053, retail: 0.0064 },
-  { code: "QA", name: "Qatar", ar: "قطر", meta: 0.0120, retail: 0.0144 },
-  { code: "KW", name: "Kuwait", ar: "الكويت", meta: 0.0440, retail: 0.0528 },
-  { code: "ES", name: "Spain", ar: "إسبانيا", meta: 0.0200, retail: 0.0240 },
-  { code: "IT", name: "Italy", ar: "إيطاليا", meta: 0.0300, retail: 0.0360 },
-  { code: "NL", name: "Netherlands", ar: "هولندا", meta: 0.0500, retail: 0.0600 },
-  { code: "AR", name: "Argentina", ar: "الأرجنتين", meta: 0.0260, retail: 0.0312 },
-  { code: "CL", name: "Chile", ar: "تشيلي", meta: 0.0200, retail: 0.0240 },
-  { code: "HK", name: "Hong Kong", ar: "هونغ كونغ", meta: 0.0260, retail: 0.0312 },
-  { code: "HU", name: "Hungary", ar: "المجر", meta: 0.0350, retail: 0.0420 },
-  { code: "KZ", name: "Kazakhstan", ar: "كازاخستان", meta: 0.0180, retail: 0.0216 },
-  { code: "MY", name: "Malaysia", ar: "ماليزيا", meta: 0.0140, retail: 0.0168 },
-  { code: "NP", name: "Nepal", ar: "نيبال", meta: 0.0034, retail: 0.0041 },
-  { code: "OM", name: "Oman", ar: "عُمان", meta: 0.0247, retail: 0.0297 },
-  { code: "PE", name: "Peru", ar: "بيرو", meta: 0.0300, retail: 0.0360 },
-  { code: "PL", name: "Poland", ar: "بولندا", meta: 0.0122, retail: 0.0147 },
-  { code: "RO", name: "Romania", ar: "رومانيا", meta: 0.0290, retail: 0.0348 },
-  { code: "RU", name: "Russia", ar: "روسيا", meta: 0.0400, retail: 0.0480 },
-  { code: "SG", name: "Singapore", ar: "سنغافورة", meta: 0.0160, retail: 0.0192 },
-  { code: "LK", name: "Sri Lanka", ar: "سريلانكا", meta: 0.0020, retail: 0.0024 },
-  { code: "UA", name: "Ukraine", ar: "أوكرانيا", meta: 0.0298, retail: 0.0358 },
-  { code: "NA", name: "North America (US/Canada)", ar: "أمريكا الشمالية (أمريكا/كندا)", meta: 0.0034, retail: 0.0041 },
-  { code: "REST-AF", name: "Rest of Africa", ar: "بقية أفريقيا", meta: 0.0040, retail: 0.0048 },
-  { code: "REST-APAC", name: "Rest of Asia Pacific", ar: "بقية آسيا والمحيط الهادئ", meta: 0.0113, retail: 0.0136 },
-  { code: "REST-ME", name: "Rest of Middle East", ar: "بقية الشرق الأوسط", meta: 0.0091, retail: 0.0110 },
-  { code: "REST-LATAM", name: "Rest of Latin America", ar: "بقية أمريكا اللاتينية", meta: 0.0113, retail: 0.0136 },
-  { code: "REST-CEE", name: "Rest of Central & Eastern Europe", ar: "بقية وسط وشرق أوروبا", meta: 0.0212, retail: 0.0255 },
-  { code: "REST-WE", name: "Rest of Western Europe", ar: "بقية غرب أوروبا", meta: 0.0171, retail: 0.0206 },
-  { code: "OTHER", name: "Other markets", ar: "أسواق أخرى", meta: 0.0077, retail: 0.0093 },
-];
-
-const PACKAGES = [4.99, 19.99, 49.99];
-const EMAIL_PRICE = 0.002;
-const TEXT = {
-  en: { title: "Proposed per-country OTP rates", sub: "Choose the recipient country to preview the proposed launch rate and estimated code counts for each wallet package.", draftNotice: "Proposed launch pricing — not active billing rates yet. Your account is charged using the active rate configured in the platform until these prices are approved and activated.", country: "Destination country", email: "Email OTP", whatsapp: "WhatsApp OTP", per: "per delivered code", package: "Wallet package", codes: "estimated codes", emailPrice: "Email rate", waPrice: "WhatsApp rate", note: "Proposed USD prices per confirmed delivery. WhatsApp prices use Meta's published local authentication rate plus a 20% indicative service margin. Provider costs, taxes, international rates and route availability can change the final rate. These prices must be approved and activated in the platform before billing can use them.", unavailable: "Not enabled yet" },
-  ar: { title: "الأسعار المقترحة لرموز التحقق حسب الدولة", sub: "اختر دولة المستلم لمعاينة سعر الإطلاق المقترح وعدد الرموز التقريبي لكل باقة.", draftNotice: "هذه أسعار مقترحة للإطلاق وليست تعرفة الخصم الفعلية حاليًا. تتم محاسبة حسابك وفق السعر النشط المسجل في المنصة إلى أن تتم الموافقة على هذه الأسعار وتفعيلها.", country: "دولة المستلم", email: "رمز البريد الإلكتروني", whatsapp: "رمز واتساب", per: "لكل رمز تم تسليمه", package: "باقة المحفظة", codes: "عدد الرموز التقريبي", emailPrice: "سعر البريد", waPrice: "سعر واتساب", note: "هذه أسعار مقترحة بالدولار وليست أسعار الخصم النشطة. تم احتساب واتساب من تعرفة المصادقة المحلية المنشورة من Meta مع هامش تقديري 20%. قد تتغير بعد إضافة رسوم المزود والضرائب والتسعير الدولي، ويجب اعتمادها وتفعيلها في المنصة قبل استخدامها في الفوترة.", unavailable: "غير مفعّل حاليًا" },
-  ru: { title: "Предлагаемые тарифы OTP по странам", sub: "Выберите страну, чтобы увидеть предлагаемую стартовую цену и примерное количество кодов в каждом пакете.", draftNotice: "Это предлагаемые стартовые цены, а не действующие тарифы списания. До утверждения и активации применяется текущий активный тариф платформы.", country: "Страна получателя", email: "Email OTP", whatsapp: "WhatsApp OTP", per: "за доставленный код", package: "Пакет кошелька", codes: "примерно кодов", emailPrice: "Цена Email", waPrice: "Цена WhatsApp", note: "Цены в USD за подтверждённую доставку. Тарифы WhatsApp рассчитаны по опубликованной локальной ставке Meta с наценкой 20%. Дополнительные сборы провайдера, налоги, международные тарифы и доступность маршрута могут изменить итоговую цену.", unavailable: "Пока не включено" },
-  es: { title: "Tarifas OTP propuestas por país", sub: "Elige el país de destino para consultar el precio inicial propuesto y los códigos estimados por paquete.", draftNotice: "Estos son precios de lanzamiento propuestos, no tarifas de facturación activas. Hasta su aprobación y activación se aplica la tarifa activa configurada en la plataforma.", country: "País de destino", email: "OTP por email", whatsapp: "OTP por WhatsApp", per: "por código entregado", package: "Paquete de saldo", codes: "códigos estimados", emailPrice: "Tarifa Email", waPrice: "Tarifa WhatsApp", note: "Precios en USD por entrega confirmada. Las tarifas de WhatsApp se calculan con la tarifa local de autenticación publicada por Meta más un margen del 20%. Los recargos del proveedor, impuestos, tarifas internacionales y disponibilidad pueden cambiar el precio final.", unavailable: "Aún no habilitado" },
-  de: { title: "Vorgeschlagene OTP-Preise nach Land", sub: "Wähle das Zielland, um den vorgeschlagenen Startpreis und die ungefähre Codeanzahl je Paket zu sehen.", draftNotice: "Dies sind vorgeschlagene Startpreise, keine aktiven Abrechnungstarife. Bis zur Freigabe und Aktivierung gilt der aktuell in der Plattform konfigurierte Tarif.", country: "Zielland", email: "E-Mail-OTP", whatsapp: "WhatsApp-OTP", per: "pro zugestelltem Code", package: "Guthabenpaket", codes: "geschätzte Codes", emailPrice: "E-Mail-Preis", waPrice: "WhatsApp-Preis", note: "Preise in USD pro bestätigter Zustellung. WhatsApp-Preise basieren auf Metas veröffentlichtem lokalem Authentifizierungstarif plus 20 % Serviceaufschlag. Anbietergebühren, Steuern, internationale Tarife und Verfügbarkeit können den Endpreis ändern.", unavailable: "Noch nicht aktiviert" },
-  zh: { title: "按国家/地区显示建议价格", sub: "选择收件国家/地区，查看建议的上线价格及各充值套餐预计可发送数量。", draftNotice: "这些是建议上线价格，并非当前生效的扣费费率。获批并启用前，账户仍按平台当前生效费率计费。", country: "收件国家/地区", email: "电子邮件 OTP", whatsapp: "WhatsApp OTP", per: "每条成功送达", package: "钱包套餐", codes: "预计验证码数量", emailPrice: "邮件价格", waPrice: "WhatsApp 价格", note: "价格单位为美元，按确认送达计费。WhatsApp 价格依据 Meta 公布的本地身份验证费率加 20% 服务差价计算。供应商附加费、税费、国际验证费率和线路可用性可能影响最终价格。", unavailable: "尚未启用" },
+type Rate = { country: string; unitPriceMicroUsd: string };
+type Package = { id: string; name: string; priceMicroUsd: string; creditMicroUsd: string };
+type Catalog = {
+  currency: "USD";
+  channels: {
+    email: { available: boolean; unitPriceMicroUsd: string | null };
+    whatsapp: { available: boolean; rates: Rate[] };
+  };
+  packages: Package[];
 };
-const usd = (n: number) => "$" + n.toFixed(4);
-const count = (credit: number, rate: number) => Math.floor(credit / rate).toLocaleString("en-US");
+const money = (micro: string | number) => "$" + (Number(micro) / 1_000_000).toFixed(4);
+const count = (credit: string, price: string) => {
+  const rate = Number(price);
+  return rate > 0 ? Math.floor(Number(credit) / rate).toLocaleString("en-US") : "—";
+};
+const countryName = (code: string, locale: string) => {
+  try { return new Intl.DisplayNames([locale], { type: "region" }).of(code) ?? code; }
+  catch { return code; }
+};
 
 export function CountryPricing({ locale }: { locale: string }) {
-  const t = TEXT[locale as keyof typeof TEXT] ?? TEXT.en;
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [code, setCode] = useState("EG");
-  const selected = useMemo(() => COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0]!, [code]);
-  const isArabic = locale === "ar";
+  const ar = locale === "ar";
+  const t = ar ? {
+    title: "أسعار OTP الفعلية حسب الدولة",
+    sub: "الأسعار المعروضة هنا تُقرأ مباشرة من نظام التسعير والفوترة.",
+    loading: "جارٍ تحميل الأسعار المعتمدة…",
+    failed: "تعذر تحميل الأسعار الآن. حاول مرة أخرى لاحقًا.",
+    email: "رمز البريد الإلكتروني",
+    whatsapp: "رمز واتساب",
+    per: "لكل رسالة تم تأكيد تسليمها",
+    country: "دولة المستلم",
+    packages: "عدد الرسائل التقريبي حسب الباقة",
+    package: "الباقة",
+    codes: "رسائل تقريبية",
+    unavailable: "غير متاح حاليًا",
+    noWa: "إرسال واتساب غير متاح حاليًا. لن يتم عرض سعر أو خصم قبل تفعيل مسار إرسال موثوق.",
+    noEmail: "إرسال البريد غير متاح حاليًا.",
+    note: "يتم الخصم فقط بعد تأكيد التسليم. السعر المعروض هو السعر النشط المرتبط بعملية الخصم في قاعدة البيانات."
+  } : {
+    title: "Live OTP prices by destination",
+    sub: "These prices are read directly from the same catalog used by billing.",
+    loading: "Loading approved prices…",
+    failed: "Pricing is temporarily unavailable. Please try again later.",
+    email: "Email OTP",
+    whatsapp: "WhatsApp OTP",
+    per: "per confirmed delivery",
+    country: "Destination country",
+    packages: "Estimated messages by wallet package",
+    package: "Package",
+    codes: "Estimated messages",
+    unavailable: "Currently unavailable",
+    noWa: "WhatsApp delivery is not enabled yet. No WhatsApp price is advertised or charged until a reliable route is activated.",
+    noEmail: "Email delivery is currently unavailable.",
+    note: "Wallet charges are applied only after confirmed delivery. Displayed prices come from the active database rates used by billing."
+  };
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API_URL}/v1/public/pricing`, { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error("pricing_unavailable"); return r.json(); })
+      .then((data: Catalog) => { if (alive) { setCatalog(data); setFailed(false); } })
+      .catch(() => { if (alive) setFailed(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const waRates = catalog?.channels.whatsapp.rates ?? [];
+  const selected = useMemo(() => waRates.find((r) => r.country === code) ?? waRates[0] ?? null, [waRates, code]);
+  const emailRate = catalog?.channels.email.available ? catalog.channels.email.unitPriceMicroUsd : null;
+
   return (
     <section className="wrap section country-pricing" id="country-rates">
       <div className="sec-head"><h2>{t.title}</h2><p>{t.sub}</p></div>
-      <p className="rate-draft-notice">{t.draftNotice}</p>
-      <div className="country-picker">
-        <label htmlFor="otp-country">{t.country}</label>
-        <select id="otp-country" value={code} onChange={(e) => setCode(e.target.value)}>
-          {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{isArabic ? c.ar : c.name}</option>)}
-        </select>
-      </div>
-      <div className="rate-summary">
-        <article className="rate-card"><span>{t.email}</span><strong>{usd(EMAIL_PRICE)}</strong><small>{t.per}</small></article>
-        <article className="rate-card"><span>{t.whatsapp} · {isArabic ? selected.ar : selected.name}</span><strong>{usd(selected.retail)}</strong><small>{t.per}</small></article>
-      </div>
-      <div className="table-scroll"><table className="rate-table">
-        <thead><tr><th>{t.package}</th><th>{t.emailPrice}</th><th>{t.codes}</th><th>{t.waPrice}</th><th>{t.codes}</th></tr></thead>
-        <tbody>{PACKAGES.map((amount) => <tr key={amount}><td><b>${amount.toFixed(2)}</b></td><td>{usd(EMAIL_PRICE)}</td><td>{count(amount, EMAIL_PRICE)}</td><td>{usd(selected.retail)}</td><td>{count(amount, selected.retail)}</td></tr>)}</tbody>
-      </table></div>
-      <p className="muted pricing-disclaimer">{t.note}</p>
-      <div className="table-scroll country-list"><table className="rate-table">
-        <thead><tr><th>{t.country}</th><th>{t.waPrice}</th><th>{t.codes} / $4.99</th></tr></thead>
-        <tbody>{COUNTRIES.map((c) => <tr key={c.code}><td>{isArabic ? c.ar : c.name}</td><td>{usd(c.retail)}</td><td>{count(4.99, c.retail)}</td></tr>)}</tbody>
-      </table></div>
+      {loading && <p className="muted" role="status">{t.loading}</p>}
+      {failed && <p className="rate-draft-notice" role="alert">{t.failed}</p>}
+      {!loading && !failed && catalog && <>
+        <div className="rate-summary">
+          <article className="rate-card">
+            <span>{t.email}</span>
+            <strong>{emailRate ? money(emailRate) : t.unavailable}</strong>
+            <small>{emailRate ? t.per : t.noEmail}</small>
+          </article>
+          <article className="rate-card">
+            <span>{t.whatsapp}</span>
+            <strong>{selected ? money(selected.unitPriceMicroUsd) : t.unavailable}</strong>
+            <small>{selected ? t.per : t.noWa}</small>
+          </article>
+        </div>
+        {waRates.length > 0 && <>
+          <div className="country-picker">
+            <label htmlFor="otp-country">{t.country}</label>
+            <select id="otp-country" value={selected?.country ?? code} onChange={(e) => setCode(e.target.value)}>
+              {waRates.map((r) => <option key={r.country} value={r.country}>{countryName(r.country, locale)}</option>)}
+            </select>
+          </div>
+        </>}
+        {catalog.packages.length > 0 && <>
+          <h3>{t.packages}</h3>
+          <div className="table-scroll">
+            <table className="rate-table">
+              <thead><tr><th>{t.package}</th><th>{t.email}</th><th>{t.codes}</th>{selected && <><th>{t.whatsapp}</th><th>{t.codes}</th></>}</tr></thead>
+              <tbody>{catalog.packages.map((p) => <tr key={p.id}>
+                <td><b>{p.name}</b></td>
+                <td>{money(p.priceMicroUsd)}</td>
+                <td>{emailRate ? count(p.creditMicroUsd, emailRate) : "—"}</td>
+                {selected && <><td>{money(selected.unitPriceMicroUsd)}</td><td>{count(p.creditMicroUsd, selected.unitPriceMicroUsd)}</td></>}
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </>}
+        {catalog.packages.length === 0 && <p className="muted">{ar ? "لا توجد باقات شحن معتمدة للبيع حاليًا. التسجيل متاح، ويمكنك التواصل مع الدعم بخصوص شحن الرصيد." : "No wallet packages are approved for sale yet. Registration remains open; contact Support about adding wallet credit."}</p>}
+        <p className="muted pricing-disclaimer">{t.note}</p>
+      </>}
     </section>
   );
 }
