@@ -32,12 +32,13 @@ export class LiveOtpDeliveryService {
     const subject = "Your OTPProvider verification code";
     const text = `Your verification code is: ${code}\n\nIt expires in ${Math.ceil(ttlSeconds / 60)} minutes. If you did not request this code, ignore this email.`;
     const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#172033"><div style="max-width:520px;margin:32px auto;padding:28px;border:1px solid #e5e7eb;border-radius:16px"><h2>OTPProvider</h2><p>Your verification code is:</p><div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:18px;background:#f3f4f6;text-align:center;border-radius:10px">${code}</div><p>It expires in ${Math.ceil(ttlSeconds / 60)} minutes.</p><p style="color:#64748b;font-size:12px">If you did not request this code, ignore this email.</p></div></body></html>`;
-    const response = await fetch("https://api.resend.com/emails", {
+    type FetchRes = { ok: boolean; status: number; json(): Promise<unknown> };
+    const response = (await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
       body: json({ from, to: [to], subject, text, html, tags: [{ name: "service", value: "otp" }, { name: "request_id", value: requestId }] }),
       signal: AbortSignal.timeout(12000),
-    });
+    })) as unknown as FetchRes;
     const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) return { ok: false as const, status: response.status };
     const messageId = safeString(payload.id);
