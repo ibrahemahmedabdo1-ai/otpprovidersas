@@ -20,7 +20,7 @@ export default function TicketPage() {
     const r = await api<Detail>("GET", `/v1/console/tickets/${id}`);
     if (r.ok && r.data) setD(r.data); else setErr(r.status === 404 ? t.tickets.notFound : errorText(t, r));
   }, [id, t]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 5000); return () => window.clearInterval(timer); }, [load]);
   async function reply() {
     setErr(""); setBusy(true);
     const r = await api("POST", `/v1/console/tickets/${id}/reply`, { body: { body: body.trim() } });
