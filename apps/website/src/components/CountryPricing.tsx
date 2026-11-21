@@ -43,6 +43,7 @@ const COUNTRIES: Country[] = [
   { code: "SG", name: "Singapore", ar: "سنغافورة", meta: 0.0160, retail: 0.0192 },
   { code: "LK", name: "Sri Lanka", ar: "سريلانكا", meta: 0.0020, retail: 0.0024 },
   { code: "UA", name: "Ukraine", ar: "أوكرانيا", meta: 0.0298, retail: 0.0358 },
+  { code: "NA", name: "North America (US/Canada)", ar: "أمريكا الشمالية (أمريكا/كندا)", meta: 0.0034, retail: 0.0041 },
   { code: "REST-AF", name: "Rest of Africa", ar: "بقية أفريقيا", meta: 0.0040, retail: 0.0048 },
   { code: "REST-APAC", name: "Rest of Asia Pacific", ar: "بقية آسيا والمحيط الهادئ", meta: 0.0113, retail: 0.0136 },
   { code: "REST-ME", name: "Rest of Middle East", ar: "بقية الشرق الأوسط", meta: 0.0091, retail: 0.0110 },
