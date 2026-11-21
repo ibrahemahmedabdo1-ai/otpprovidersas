@@ -106,6 +106,47 @@ export class CatalogService {
     return { ok: true };
   }
 
+  /** Public pricing catalog. Only approved prices, enabled delivery routes and approved packages are exposed. */
+  async publicPricing() {
+    const r = await this.db.pool.query(
+      `SELECT p.channel, p.country, p.unit_price_micro_usd
+       FROM prices p
+       WHERE p.status='active' AND (p.effective_from IS NULL OR p.effective_from <= now())
+         AND EXISTS (
+           SELECT 1 FROM providers v
+           WHERE v.channel=p.channel AND v.enabled=true AND v.maintenance=false
+             AND (p.channel='email' OR (
+               COALESCE((v.config->>'customer_sending_enabled')::boolean, false)=true
+               AND COALESCE(v.config->>'delivery_receipts','') <> 'not_available'
+             ))
+         )
+       ORDER BY p.channel, p.country`
+    );
+    const emailReady = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM && process.env.RESEND_WEBHOOK_SECRET);
+    const rates = r.rows
+      .filter((p) => p.channel !== "email" || (emailReady && p.country === "*"))
+      .filter((p) => p.channel !== "whatsapp" || p.country !== "*")
+      .map((p) => ({ channel: p.channel as string, country: p.country as string, unitPriceMicroUsd: String(p.unit_price_micro_usd) }));
+    const packages = await this.db.pool.query(
+      "SELECT id, name, price_micro_usd, credit_micro_usd FROM packages WHERE active=true AND commercially_approved=true ORDER BY price_micro_usd"
+    );
+    const email = rates.find((p) => p.channel === "email");
+    const whatsapp = rates.filter((p) => p.channel === "whatsapp");
+    return {
+      currency: "USD",
+      channels: {
+        email: { available: Boolean(email), unitPriceMicroUsd: email?.unitPriceMicroUsd ?? null },
+        whatsapp: { available: whatsapp.length > 0, rates: whatsapp },
+      },
+      packages: packages.rows.map((p) => ({
+        id: p.id as string,
+        name: p.name as string,
+        priceMicroUsd: String(p.price_micro_usd),
+        creditMicroUsd: String(p.credit_micro_usd),
+      })),
+    };
+  }
+
   /** Public footer details; only what an admin saved, nothing invented. */
   async publicCompany() {
     const r = await this.db.pool.query("SELECT value FROM system_settings WHERE key='company'");
