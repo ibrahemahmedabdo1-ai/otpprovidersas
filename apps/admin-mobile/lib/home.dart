@@ -19,6 +19,7 @@ class _HomeState extends State<Home> {
     ('Deposits', Icons.payments_outlined, DepositsTab(isSuper: isSuper)),
     if (isSuper) ('Approvals', Icons.verified_outlined, const ApprovalsTab()),
     ('Users', Icons.people_outline, UsersTab(isSuper: isSuper, myId: myId)),
+    if (isSuper) ('Staff', Icons.badge_outlined, const StaffTab()),
     ('Organizations', Icons.business_outlined, OrgsTab(isSuper: isSuper)),
     ('Prices', Icons.sell_outlined, PricingTab(isSuper: isSuper)),
     ('Packages', Icons.inventory_2_outlined, PackagesTab(isSuper: isSuper)),

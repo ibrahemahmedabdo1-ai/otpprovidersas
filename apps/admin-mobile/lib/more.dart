@@ -322,3 +322,42 @@ class _PriceFormState extends State<_PriceForm> {
     FilledButton(onPressed: _save, child: const Text('Propose price')),
   ])));
 }
+
+
+class StaffTab extends StatefulWidget {
+  const StaffTab({super.key});
+  @override
+  State<StaffTab> createState() => _StaffTabState();
+}
+
+class _StaffTabState extends State<StaffTab> {
+  final email = TextEditingController(), name = TextEditingController(), password = TextEditingController();
+  String role = 'support_staff', err = '', ok = '';
+  bool busy = false;
+
+  Future<void> _create() async {
+    setState(() { busy = true; err = ''; ok = ''; });
+    final r = await Api.post('/v1/admin/staff', {'email': email.text.trim(), 'name': name.text.trim(), 'role': role, 'password': password.text});
+    if (!mounted) return;
+    setState(() {
+      busy = false;
+      if (r.ok) { ok = 'Account created for ${email.text.trim()}. Share the password privately. They must set up MFA at first sign-in.'; email.clear(); name.clear(); password.clear(); } else { err = errorText(r); }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
+    const Text('Create an Admin or Support account. The new person must enrol MFA at first sign-in.'),
+    if (err.isNotEmpty) Banner2(err),
+    if (ok.isNotEmpty) Banner2(ok, ok: true),
+    const SizedBox(height: 8),
+    TextField(controller: email, keyboardType: TextInputType.emailAddress, autocorrect: false, decoration: const InputDecoration(labelText: 'Email')),
+    const SizedBox(height: 12),
+    TextField(controller: name, maxLength: 80, decoration: const InputDecoration(labelText: 'Display name')),
+    DropdownButtonFormField<String>(initialValue: role, decoration: const InputDecoration(labelText: 'Role'), items: const [DropdownMenuItem(value: 'support_staff', child: Text('Support')), DropdownMenuItem(value: 'admin_staff', child: Text('Admin'))], onChanged: (v) => setState(() => role = v ?? 'support_staff')),
+    const SizedBox(height: 12),
+    TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Initial password (12+ characters)')),
+    const SizedBox(height: 16),
+    FilledButton(onPressed: busy ? null : _create, child: Text(busy ? 'Creating' : 'Create account')),
+  ]);
+}

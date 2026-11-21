@@ -31,7 +31,7 @@ class _ProjectPageState extends State<ProjectPage> {
     setState(() { busy = true; err = ''; });
     final r = await Api.post(_base, {'mode': mode});
     if (!mounted) return;
-    setState(() { busy = false; if (r.ok) { fresh = '${r.map?['key'] ?? ''}'; } else { err = errorText(r); } });
+    setState(() { busy = false; if (r.ok) { fresh = '${r.map['key'] ?? ''}'; } else { err = errorText(r); } });
     if (r.ok) await _load();
   }
 
@@ -62,7 +62,7 @@ class _ProjectPageState extends State<ProjectPage> {
             SelectableText(fresh, style: const TextStyle(fontFamily: 'monospace')),
             const SizedBox(height: 8),
             Row(children: [
-              FilledButton(onPressed: () async { await Clipboard.setData(ClipboardData(text: fresh)); if (!mounted) return; ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key copied'))); }, child: const Text('Copy key')),
+              FilledButton(onPressed: () async { await Clipboard.setData(ClipboardData(text: fresh)); if (!context.mounted) return; ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key copied'))); }, child: const Text('Copy key')),
               const SizedBox(width: 8),
               TextButton(onPressed: () => setState(() => fresh = ''), child: const Text('I saved it')),
             ]),
@@ -110,7 +110,7 @@ class _TransactionsListState extends State<TransactionsList> {
     if (!mounted) return;
     setState(() {
       more = false; loaded = true;
-      if (r.ok) { if (!append) items.clear(); items.addAll((r.map?['items'] as List<dynamic>?) ?? []); next = r.map?['nextBefore'] as String?; } else { err = errorText(r); }
+      if (r.ok) { if (!append) items.clear(); items.addAll((r.map['items'] as List<dynamic>?) ?? []); next = r.map['nextBefore'] as String?; } else { err = errorText(r); }
     });
   }
 
