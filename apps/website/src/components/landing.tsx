@@ -107,28 +107,39 @@ export function Why({ l }: { l: Landing }) {
   );
 }
 
-export function Plans({ locale, l }: { locale: Locale; l: Landing }) {
+export async function Plans({ locale, l }: { locale: Locale; l: Landing }) {
+  const catalog = await fetch(`${API_URL}/v1/public/pricing`, { cache: "no-store", signal: AbortSignal.timeout(3000) })
+    .then(async (r) => r.ok ? await r.json() as { packages?: { id: string; name: string; priceMicroUsd: string; creditMicroUsd: string }[] } : null)
+    .catch(() => null);
+  const packages = catalog?.packages ?? [];
   return (
     <section className="wrap section" id="plans">
       <div className="sec-head"><h2>{l.plans.title}</h2><p>{l.plans.sub}</p></div>
-      <div className="plans">
-        {PLANS.map((p, i) => {
-          const c = l.plans.items[i]!;
-          return (
-            <article key={p.id} className={p.popular ? "plan pop" : "plan"}>
-              {p.popular && <span className="tag">{l.plans.popular}</span>}
-              <h3>{c.name}</h3>
-              <p className="blurb">{c.blurb}</p>
-              {p.amountUsd === null
-                ? <div className="price custom">{l.plans.custom}</div>
-                : <div className="price" dir="ltr" style={{ textAlign: "start" }}>{formatUsd(locale, p.amountUsd)}</div>}
-              <div className="unit">{p.amountUsd === null ? "" : l.plans.unit}</div>
-              <ul>{c.features.map((f) => <li key={f}>{f}</li>)}</ul>
-              <a className={p.popular ? "btn block" : "btn ghost block"} href={p.amountUsd === null ? contactHref() : CONSOLE.register} rel="noopener">{c.cta}</a>
-            </article>
-          );
-        })}
-      </div>
+      {packages.length > 0 ? (
+        <div className="plans">
+          {packages.map((p, i) => {
+            const price = Number(p.priceMicroUsd) / 1_000_000;
+            const credit = Number(p.creditMicroUsd) / 1_000_000;
+            return (
+              <article key={p.id} className={i === 1 ? "plan pop" : "plan"}>
+                {i === 1 && <span className="tag">{l.plans.popular}</span>}
+                <h3>{p.name}</h3>
+                <p className="blurb">{locale === "ar" ? "رصيد مسبق الدفع في محفظتك" : "Prepaid wallet credit"}</p>
+                <div className="price" dir="ltr" style={{ textAlign: "start" }}>{formatUsd(locale, price)}</div>
+                <div className="unit">{locale === "ar" ? "رصيد المحفظة" : "Wallet credit"}: {formatUsd(locale, credit)}</div>
+                <ul>{(l.plans.items[i]?.features ?? []).map((f) => <li key={f}>{f}</li>)}</ul>
+                <a className={i === 1 ? "btn block" : "btn ghost block"} href={CONSOLE.register} rel="noopener">{l.plans.items[i]?.cta ?? (locale === "ar" ? "إنشاء حساب" : "Create account")}</a>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="plan">
+          <h3>{locale === "ar" ? "الباقات قيد الاعتماد" : "Wallet packages are being prepared"}</h3>
+          <p className="blurb">{locale === "ar" ? "التسجيل متاح الآن. ستظهر الباقات فور اعتمادها وتفعيلها في النظام، ولن نعرض سعرًا غير قابل للشراء." : "Registration is open. Packages will appear as soon as they are approved and activated in the billing system."}</p>
+          <a className="btn block" href={CONSOLE.register} rel="noopener">{l.plans.items[0]?.cta ?? "Create account"}</a>
+        </div>
+      )}
       <p className="muted plans-note">{l.plans.note}</p>
     </section>
   );
