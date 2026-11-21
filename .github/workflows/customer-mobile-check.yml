@@ -1,0 +1,38 @@
+name: Customer Android app check
+
+on:
+  pull_request:
+    paths:
+      - "apps/customer-mobile/**"
+      - ".github/workflows/customer-mobile-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/customer-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android project
+        run: |
+          flutter create --org com.otpprovider --project-name customer --platforms android .
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
+      - run: flutter pub get
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+      - name: Build debug APK
+        run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
