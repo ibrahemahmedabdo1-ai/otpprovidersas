@@ -10,15 +10,15 @@ export default function Tickets() {
   const [rows, setRows] = useState<Ticket[] | null>(null);
   const [err, setErr] = useState("");
   const load = useCallback(async () => {
-    setRows(null); setErr("");
+    setErr("");
     const r = await api<Ticket[]>("GET", `/v1/support/tickets?status=${status}`);
     if (r.ok && r.data) setRows(r.data);
     else { setRows([]); setErr(r.status === 404 ? UNAVAILABLE : errorText(r)); }
   }, [status]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 15000); return () => window.clearInterval(timer); }, [load]);
   return (
     <>
-      <div className="pagehead"><h1>Tickets</h1><p>Support can reply to customers and add internal notes. Support cannot see secrets or change any balance.</p></div>
+      <div className="pagehead"><h1>Tickets</h1><p>New customer conversations appear automatically. Inbox refreshes every 15 seconds. Support can reply and add internal notes, but cannot see secrets or change balances.</p></div>
       <div className="seg" role="group" aria-label="Filter by status">
         {STATUSES.map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{STATUS_LABEL[s]}</button>)}
       </div>

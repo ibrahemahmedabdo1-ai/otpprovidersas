@@ -22,7 +22,7 @@ export default function TicketPage() {
     const r = await api<Detail>("GET", `/v1/support/tickets/${id}`);
     if (r.ok && r.data) setD(r.data); else setErr(r.status === 404 ? UNAVAILABLE + " Or this ticket does not exist." : errorText(r));
   }, [id]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 5000); return () => window.clearInterval(timer); }, [load]);
 
   async function post(path: string, payload: unknown) {
     setErr(""); setBusy(true);

@@ -4,6 +4,7 @@ import { LOCALES, NATIVE_NAMES, type Locale } from "../i18n/config";
 import type { Dict } from "../i18n";
 import { getLanding } from "../i18n/landing";
 import { CONSOLE, getCompany } from "../lib/site";
+import SupportChat from "./SupportChat";
 
 const NAV = [
   ["/products", "products"], ["/developers", "developers"], ["/pricing", "pricing"], ["/security", "security"],
@@ -49,6 +50,7 @@ export async function Shell({ locale, t, path, children }: { locale: Locale; t: 
         </div>
       </header>
       <main id="main">{children}</main>
+      <SupportChat locale={locale} registerUrl={CONSOLE.register} />
       <footer className="foot">
         <div className="wrap">
           <div className="foot-grid">

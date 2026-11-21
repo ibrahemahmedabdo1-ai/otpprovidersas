@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core.dart';
 
@@ -56,16 +57,17 @@ class _HomeState extends State<Home> {
   int tab = 0;
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[const WalletTab(), const ProjectsTab(), AccountTab(me: widget.me, signOut: widget.signOut)];
+    final pages = <Widget>[const WalletTab(), const ProjectsTab(), const SupportTab(), AccountTab(me: widget.me, signOut: widget.signOut)];
     return Scaffold(
       appBar: AppBar(title: const Text('OTPProvider')),
       body: Column(children: [
-        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('Sandbox only. Nothing here sends real messages or charges your wallet.', style: TextStyle(fontSize: 12))),
+        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('OTP sending is sandbox-only. Support conversations are delivered to our support team. Sandbox OTP requests do not send messages or charge your wallet.', style: TextStyle(fontSize: 12))),
         Expanded(child: pages[tab]),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: const [
         NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
         NavigationDestination(icon: Icon(Icons.folder_outlined), label: 'Projects'),
+        NavigationDestination(icon: Icon(Icons.support_agent), label: 'Support'),
         NavigationDestination(icon: Icon(Icons.person_outline), label: 'Account'),
       ]),
     );
@@ -199,5 +201,206 @@ class AccountTab extends StatelessWidget {
       const SizedBox(height: 16),
       FilledButton(onPressed: signOut, child: const Text('Sign out')),
     ]);
+  }
+}
+
+
+class SupportTab extends StatefulWidget {
+  const SupportTab({super.key});
+  @override
+  State<SupportTab> createState() => _SupportTabState();
+}
+
+class _SupportTabState extends State<SupportTab> {
+  List<dynamic>? tickets;
+  String err = '';
+  bool busy = false;
+  final subject = TextEditingController();
+  final message = TextEditingController();
+  Timer? refresh;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    refresh = Timer.periodic(const Duration(seconds: 15), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    refresh?.cancel();
+    subject.dispose();
+    message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final r = await Api.get('/v1/console/tickets');
+    if (!mounted) return;
+    setState(() {
+      if (r.ok) { tickets = r.list; err = ''; }
+      else { tickets ??= []; err = errorText(r); }
+    });
+  }
+
+  Future<void> _create() async {
+    if (subject.text.trim().length < 3 || message.text.trim().isEmpty) return;
+    setState(() { busy = true; err = ''; });
+    final r = await Api.post('/v1/console/tickets', {
+      'subject': subject.text.trim(),
+      'body': message.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() { busy = false; if (!r.ok) err = errorText(r); });
+    if (r.ok) {
+      final id = '${r.map['id'] ?? ''}';
+      subject.clear();
+      message.clear();
+      await _load();
+      if (id.isNotEmpty && mounted) {
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportThreadPage(ticketId: id)));
+        if (mounted) await _load();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('Contact our support team. Your conversations are private to your account, and replies appear here automatically.'),
+        const SizedBox(height: 12),
+        if (err.isNotEmpty) Banner2(err),
+        Text('Start a conversation', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        TextField(controller: subject, onChanged: (_) => setState(() {}), maxLength: 150, decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        TextField(controller: message, onChanged: (_) => setState(() {}), maxLength: 5000, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'How can we help?', border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        FilledButton(onPressed: busy || subject.text.trim().length < 3 || message.text.trim().isEmpty ? null : _create, child: Text(busy ? 'Sending…' : 'Send to support')),
+        const Divider(height: 32),
+        Text('Your conversations', style: Theme.of(context).textTheme.titleMedium),
+        if (tickets == null) const LinearProgressIndicator(),
+        if (tickets != null && tickets!.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('No conversations yet. Start one above.')),
+        for (final raw in tickets ?? <dynamic>[])
+          Builder(builder: (context) {
+            final t = raw as Map<String, dynamic>;
+            return Card(
+              child: ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.support_agent)),
+                title: Text('${t['subject'] ?? 'Support request'}'),
+                subtitle: Text('Status: ${t['status'] ?? 'open'}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SupportThreadPage(ticketId: '${t['id']}')));
+                  if (mounted) await _load();
+                },
+              ),
+            );
+          }),
+      ]),
+    );
+  }
+}
+
+class SupportThreadPage extends StatefulWidget {
+  final String ticketId;
+  const SupportThreadPage({super.key, required this.ticketId});
+  @override
+  State<SupportThreadPage> createState() => _SupportThreadPageState();
+}
+
+class _SupportThreadPageState extends State<SupportThreadPage> {
+  Map<String, dynamic>? thread;
+  String err = '';
+  bool busy = false;
+  final reply = TextEditingController();
+  Timer? refresh;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    refresh = Timer.periodic(const Duration(seconds: 5), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    refresh?.cancel();
+    reply.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final r = await Api.get('/v1/console/tickets/${widget.ticketId}');
+    if (!mounted) return;
+    setState(() { if (r.ok) { thread = r.map; err = ''; } else { err = errorText(r); } });
+  }
+
+  Future<void> _send() async {
+    final body = reply.text.trim();
+    if (body.isEmpty) return;
+    setState(() { busy = true; err = ''; });
+    final r = await Api.post('/v1/console/tickets/${widget.ticketId}/reply', {'body': body});
+    if (!mounted) return;
+    setState(() { busy = false; if (!r.ok) err = errorText(r); else reply.clear(); });
+    if (r.ok) await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticket = thread?['ticket'] as Map<String, dynamic>?;
+    final messages = thread?['messages'] as List<dynamic>? ?? <dynamic>[];
+    return Scaffold(
+      appBar: AppBar(title: Text(ticket?['subject']?.toString() ?? 'Support conversation')),
+      body: Column(children: [
+        if (err.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: Banner2(err)),
+        Expanded(
+          child: thread == null
+              ? const Center(child: CircularProgressIndicator())
+              : messages.isEmpty
+                  ? const Center(child: Text('No messages yet.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final m = messages[index] as Map<String, dynamic>;
+                        final mine = m['from'] == 'you';
+                        return Align(
+                          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .82),
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: mine ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(mine ? 'You' : 'OTPProvider Support', style: Theme.of(context).textTheme.labelSmall),
+                              const SizedBox(height: 4),
+                              Text('${m['body'] ?? ''}'),
+                              const SizedBox(height: 4),
+                              Text('${m['createdAt'] ?? ''}', style: Theme.of(context).textTheme.labelSmall),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Expanded(child: TextField(controller: reply, onChanged: (_) => setState(() {}), minLines: 1, maxLines: 4, maxLength: 5000, decoration: const InputDecoration(hintText: 'Write a reply…', border: OutlineInputBorder(), counterText: ''))),
+              const SizedBox(width: 8),
+              IconButton.filled(onPressed: busy || reply.text.trim().isEmpty ? null : _send, icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send)),
+            ]),
+          ),
+        ),
+      ]),
+    );
   }
 }
