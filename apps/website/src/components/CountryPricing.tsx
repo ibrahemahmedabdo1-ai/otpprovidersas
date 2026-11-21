@@ -68,7 +68,7 @@ const count = (credit: number, rate: number) => Math.floor(credit / rate).toLoca
 export function CountryPricing({ locale }: { locale: string }) {
   const t = TEXT[locale as keyof typeof TEXT] ?? TEXT.en;
   const [code, setCode] = useState("EG");
-  const selected = useMemo(() => COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0], [code]);
+  const selected = useMemo(() => COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0]!, [code]);
   const isArabic = locale === "ar";
   return (
     <section className="wrap section country-pricing" id="country-rates">
