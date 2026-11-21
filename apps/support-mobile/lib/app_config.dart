@@ -3,7 +3,7 @@ import 'home.dart';
 
 class AppConfig {
   static const title = 'OTPProvider Support';
-  static const roles = <String>['support_staff'];
+  static const roles = <String>['support_staff', 'super_admin'];
   static const loginHint = 'Support staff only. Two-step verification is always required.';
 }
 
