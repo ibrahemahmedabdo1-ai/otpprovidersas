@@ -67,7 +67,7 @@ class _HomeState extends State<Home> {
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: const [
         NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
         NavigationDestination(icon: Icon(Icons.folder_outlined), label: 'Projects'),
-        NavigationDestination(icon: Icon(Icons.support_agent_outlined), label: 'Support'),
+        NavigationDestination(icon: Icon(Icons.support_agent), label: 'Support'),
         NavigationDestination(icon: Icon(Icons.person_outline), label: 'Account'),
       ]),
     );
@@ -274,9 +274,9 @@ class _SupportTabState extends State<SupportTab> {
         if (err.isNotEmpty) Banner2(err),
         Text('Start a conversation', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        TextField(controller: subject, maxLength: 150, decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder())),
+        TextField(controller: subject, onChanged: (_) => setState(() {}), maxLength: 150, decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder())),
         const SizedBox(height: 8),
-        TextField(controller: message, maxLength: 5000, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'How can we help?', border: OutlineInputBorder())),
+        TextField(controller: message, onChanged: (_) => setState(() {}), maxLength: 5000, minLines: 3, maxLines: 6, decoration: const InputDecoration(labelText: 'How can we help?', border: OutlineInputBorder())),
         const SizedBox(height: 8),
         FilledButton(onPressed: busy || subject.text.trim().length < 3 || message.text.trim().isEmpty ? null : _create, child: Text(busy ? 'Sending…' : 'Send to support')),
         const Divider(height: 32),
@@ -394,7 +394,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Expanded(child: TextField(controller: reply, minLines: 1, maxLines: 4, maxLength: 5000, decoration: const InputDecoration(hintText: 'Write a reply…', border: OutlineInputBorder(), counterText: ''))),
+              Expanded(child: TextField(controller: reply, onChanged: (_) => setState(() {}), minLines: 1, maxLines: 4, maxLength: 5000, decoration: const InputDecoration(hintText: 'Write a reply…', border: OutlineInputBorder(), counterText: ''))),
               const SizedBox(width: 8),
               IconButton.filled(onPressed: busy || reply.text.trim().isEmpty ? null : _send, icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send)),
             ]),
