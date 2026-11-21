@@ -29,8 +29,8 @@ export default async function Pricing({ params }: P) {
       <div className="wrap section narrow">
         <Crumbs locale={locale} t={t} items={crumbs} />
         <h1>{t.pricing.h1}</h1>
-        <p className="lead">{locale === "ar" ? "أسعار واضحة حسب قناة الإرسال ودولة المستلم. اشحن رصيدك وادفع فقط مقابل الرسائل التي تم تأكيد تسليمها." : "Clear rates by delivery channel and destination country. Top up your wallet and pay only for confirmed deliveries."}</p>
-        <ul className="ticks">{(locale === "ar" ? ["الباقات رصيد مسبق الدفع يبدأ من 4.99 دولار", "سعر مختلف لكل دولة في واتساب", "البريد الإلكتروني بسعر موحد", "لا يتم الخصم إلا بعد تأكيد التسليم"] : ["Prepaid wallet packages start at $4.99", "WhatsApp rates vary by destination country", "One simple Email OTP rate", "Charges apply only after confirmed delivery"]).map((p) => <li key={p}>{p}</li>)}</ul>
+        <p className="lead">{locale === "ar" ? "الأسعار والباقات المعروضة تُقرأ من التعرفة المعتمدة ومسارات الإرسال الفعالة في النظام." : "Prices and wallet packages are read from the approved billing catalog and currently enabled delivery routes."}</p>
+        <ul className="ticks">{(locale === "ar" ? ["تظهر الباقات بعد اعتمادها وتفعيلها", "تظهر أسعار الدول عند تفعيل مسار الإرسال", "السعر المعروض هو نفسه المستخدم في الخصم", "لا يتم الخصم إلا بعد تأكيد التسليم"] : ["Packages appear only after approval and activation", "Country rates appear only when a delivery route is enabled", "The displayed rate is the exact rate used for billing", "Charges apply only after confirmed delivery"]).map((p) => <li key={p}>{p}</li>)}</ul>
       </div>
       <Plans locale={locale} l={l} />
       <CountryPricing locale={locale} />
