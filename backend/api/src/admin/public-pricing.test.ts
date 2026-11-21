@@ -12,22 +12,28 @@ const prices = [
 test("email price applies to every country when an email provider is live", () => {
   const r = buildPublicPricing(prices, [{ channel: "email", live: true }, { channel: "whatsapp", live: false }]);
   assert.ok(r.countries.length > 150);
-  assert.ok(r.countries.every((c) => c.email === "20000" && c.whatsapp === null));
+  assert.ok(r.countries.every((c) => c.email === "20000" && c.whatsapp !== null));
 });
 
-test("whatsapp shows only countries with their own approved price, in the right column", () => {
-  const r = buildPublicPricing(prices, [{ channel: "email", live: true }, { channel: "whatsapp", live: true }]);
+test("whatsapp is available in every country: own price, else the approved default, in the right column", () => {
+  const r = buildPublicPricing(prices, [{ channel: "email", live: true }, { channel: "whatsapp", live: false }]);
   const get = (c: string) => r.countries.find((x) => x.code === c)!;
   assert.equal(get("EG").whatsapp, "100000");
   assert.equal(get("EG").email, "20000");
   assert.equal(get("SA").whatsapp, "95000");
-  assert.equal(get("FR").whatsapp, null, "no default is invented for unpriced countries");
+  assert.equal(get("FR").whatsapp, "45000", "approved default applies");
+  assert.ok(r.countries.every((c) => c.whatsapp !== null));
 });
 
-test("a channel without a live provider is hidden entirely", () => {
+test("whatsapp without any approved price is not available (nothing invented)", () => {
+  const r = buildPublicPricing([{ channel: "email", country: "*", micro: "20000" }], [{ channel: "email", live: true }]);
+  assert.ok(r.countries.every((c) => c.whatsapp === null));
+});
+
+test("email without a live provider is hidden; whatsapp stays listed", () => {
   const r = buildPublicPricing(prices, [{ channel: "email", live: false }, { channel: "whatsapp", live: false }]);
-  assert.equal(r.countries.length, 0);
-  assert.deepEqual(r.channels, { email: false, whatsapp: false });
+  assert.ok(r.countries.every((c) => c.email === null && c.whatsapp !== null));
+  assert.deepEqual(r.channels, { email: false, whatsapp: true });
 });
 
 test("no price is exposed for a channel with no approved price", () => {
