@@ -4,6 +4,7 @@ import type { AuthContext } from "../auth/auth.service";
 import { isUuid, parseDisplayName, parseEmail, parsePassword } from "../auth/validators";
 import { hashPassword } from "../auth/password";
 import { writeAudit } from "../common/audit";
+import { buildPublicPricing } from "./public-pricing";
 
 const bad = (fields: Record<string, string>): never => { throw new BadRequestException({ error: "validation_failed", fields }); };
 const obj = (b: unknown): Record<string, unknown> => (b && typeof b === "object" ? (b as Record<string, unknown>) : {});
@@ -112,6 +113,14 @@ export class CatalogService {
     const v = obj(r.rows[0]?.value);
     const str = (k: string, max: number) => (typeof v[k] === "string" ? (v[k] as string).slice(0, max) : "");
     return { legalName: str("legalName", 120), address: str("address", 400), email: str("email", 120), phone: str("phone", 40) };
+  }
+  /** Approved prices and live providers only. No costs, margins or internal state. */
+  async publicPricing() {
+    const [pr, pv] = await Promise.all([
+      this.db.pool.query("SELECT channel, country, unit_price_micro_usd AS micro FROM prices WHERE status='active'"),
+      this.db.pool.query("SELECT channel, bool_or(enabled AND NOT maintenance) AS live FROM providers GROUP BY channel"),
+    ]);
+    return buildPublicPricing(pr.rows, pv.rows);
   }
   async setCompany(c: AuthContext, body: unknown, ip: string | null) {
     this.sup(c); const b = obj(body);

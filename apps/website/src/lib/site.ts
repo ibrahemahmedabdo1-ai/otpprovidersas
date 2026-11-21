@@ -54,3 +54,20 @@ export async function getCompany(): Promise<CompanyInfo> {
   }
   return COMPANY;
 }
+
+
+export type PublicPricing = { currency: "USD"; channels: { email: boolean; whatsapp: boolean }; countries: { code: string; email: string | null; whatsapp: string | null }[] };
+
+/** Approved prices from the API (single source of truth). Returns null when the API cannot be reached so the page can say so instead of showing stale numbers. */
+export async function getPricing(): Promise<PublicPricing | null> {
+  const bases = [process.env.NEXT_PUBLIC_API_URL, "https://otpprovider-launch-api.vercel.app"].filter(Boolean) as string[];
+  for (const b of bases) {
+    try {
+      const res = await fetch(`${b.replace(/\/+$/, "")}/v1/public/pricing`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(4000) });
+      if (!res.ok) continue;
+      const j = (await res.json()) as PublicPricing;
+      if (j && Array.isArray(j.countries)) return j;
+    } catch { /* try next */ }
+  }
+  return null;
+}

@@ -952,6 +952,23 @@ paths:
       responses:
         "200": {description: Receipt processed or ignored as a duplicate}
         "400": {description: Raw body unavailable or signature invalid}
+  /v1/public/pricing:
+    get:
+      tags: ["Public"]
+      summary: "Approved per-message prices by country for channels that have a live provider (USD)"
+      responses:
+        "200":
+          description: Prices as decimal micro-USD strings; null means not available for that channel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currency: {type: string, enum: [USD]}
+                  channels: {type: object, properties: {email: {type: boolean}, whatsapp: {type: boolean}}}
+                  countries:
+                    type: array
+                    items: {type: object, properties: {code: {type: string}, email: {type: string, nullable: true}, whatsapp: {type: string, nullable: true}}}
   /v1/public/company:
     get:
       tags: ["Public"]
