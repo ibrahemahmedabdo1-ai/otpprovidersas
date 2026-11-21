@@ -145,8 +145,8 @@ export class CatalogService {
 
   async orgs(c: AuthContext) {
     this.staff(c);
-    const r = await this.db.pool.query("SELECT o.id, o.name, o.country, o.status, o.risk_level, o.created_at, u.email AS owner FROM organizations o JOIN users u ON u.id=o.owner_user_id ORDER BY o.created_at DESC LIMIT 100");
-    return r.rows.map((o) => ({ id: o.id, name: o.name, country: o.country ?? "", status: o.status, riskLevel: o.risk_level, owner: o.owner, createdAt: o.created_at }));
+    const r = await this.db.pool.query("SELECT o.id, o.name, o.country, o.status, o.risk_level, o.created_at, u.email AS owner, (SELECT status FROM customer_verifications cv WHERE cv.organization_id=o.id ORDER BY cv.created_at DESC LIMIT 1) AS verification FROM organizations o JOIN users u ON u.id=o.owner_user_id ORDER BY o.created_at DESC LIMIT 100");
+    return r.rows.map((o) => ({ id: o.id, name: o.name, country: o.country ?? "", status: o.status, riskLevel: o.risk_level, owner: o.owner, verification: o.verification ?? "none", createdAt: o.created_at }));
   }
   async updateOrg(c: AuthContext, idRaw: string, body: unknown, ip: string | null) {
     this.sup(c); const id = this.id(idRaw); const b = obj(body);
@@ -159,6 +159,16 @@ export class CatalogService {
     const r = await this.db.pool.query(`UPDATE organizations SET ${sets.join(",")}, updated_at=now() WHERE id=$1 AND status IN ('active','suspended') RETURNING id`, vals);
     if (!r.rowCount) throw new NotFoundException({ error: "not_found" });
     await writeAudit(this.db.pool, { actorId: c.userId, action: "organization.updated", subjectType: "organization", subjectId: id, ip, meta: b });
+    return { ok: true };
+  }
+  async setVerification(c: AuthContext, idRaw: string, body: unknown, ip: string | null) {
+    this.sup(c); const id = this.id(idRaw); const b = obj(body);
+    if (b.status !== "approved" && b.status !== "rejected") bad({ status: "approved or rejected" });
+    const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : null;
+    const org = await this.db.pool.query("SELECT id FROM organizations WHERE id=$1", [id]);
+    if (!org.rowCount) throw new NotFoundException({ error: "not_found" });
+    await this.db.pool.query("INSERT INTO customer_verifications(organization_id,status,reviewed_by,reviewed_at,note) VALUES ($1,$2,$3,now(),$4)", [id, b.status, c.userId, note || null]);
+    await writeAudit(this.db.pool, { actorId: c.userId, action: `organization.verification_${b.status}`, subjectType: "organization", subjectId: id, ip });
     return { ok: true };
   }
 }

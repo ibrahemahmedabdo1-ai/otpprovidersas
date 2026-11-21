@@ -63,8 +63,14 @@ export class ProjectsService {
     await this.ownProject(orgId, projectId);
     const mode = (body as { mode?: unknown } | null)?.mode;
     if (mode !== "test" && mode !== "live") throw new BadRequestException({ error: "validation_failed", message: "mode must be 'test' or 'live'" });
-    // Live keys are issued only after customer verification and provider activation exist (later phase).
-    if (mode === "live") throw new ForbiddenException({ error: "live_mode_not_enabled", message: "Live keys are not available yet. Create a test key." });
+    // Live keys need an approved customer verification and an enabled, healthy-by-admin email provider.
+    if (mode === "live") {
+      const ready = await this.db.pool.query(
+        `SELECT (SELECT status FROM customer_verifications WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 1) AS verification,
+                EXISTS (SELECT 1 FROM providers WHERE channel='email' AND kind='RESEND' AND enabled=true AND maintenance=false) AS provider`, [orgId]);
+      if (ready.rows[0]?.verification !== "approved") throw new ForbiddenException({ error: "customer_verification_required", message: "Your organization must be verified before live keys can be created. Contact support." });
+      if (!ready.rows[0]?.provider) throw new ForbiddenException({ error: "live_mode_not_enabled", message: "Live sending is not enabled yet. Use a test key." });
+    }
     const active = await this.db.pool.query("SELECT count(*)::int AS n FROM api_keys WHERE project_id = $1 AND revoked_at IS NULL", [projectId]);
     if (active.rows[0].n >= MAX_ACTIVE_KEYS) throw new ForbiddenException({ error: "key_limit_reached" });
 
