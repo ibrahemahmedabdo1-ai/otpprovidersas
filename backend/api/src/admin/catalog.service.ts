@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { DbService } from "../db.service";
 import type { AuthContext } from "../auth/auth.service";
-import { isUuid } from "../auth/validators";
+import { isUuid, parseDisplayName, parseEmail, parsePassword } from "../auth/validators";
+import { hashPassword } from "../auth/password";
 import { writeAudit } from "../common/audit";
 
 const bad = (fields: Record<string, string>): never => { throw new BadRequestException({ error: "validation_failed", fields }); };
@@ -170,5 +171,20 @@ export class CatalogService {
     await this.db.pool.query("INSERT INTO customer_verifications(organization_id,status,reviewed_by,reviewed_at,note) VALUES ($1,$2,$3,now(),$4)", [id, b.status, c.userId, note || null]);
     await writeAudit(this.db.pool, { actorId: c.userId, action: `organization.verification_${b.status}`, subjectType: "organization", subjectId: id, ip });
     return { ok: true };
+  }
+  async createStaff(c: AuthContext, body: unknown, ip: string | null) {
+    this.sup(c); const b = obj(body);
+    if (b.role !== "admin_staff" && b.role !== "support_staff") bad({ role: "admin_staff or support_staff" });
+    const email = parseEmail(b.email); if (!email.ok) bad({ email: email.error });
+    const name = parseDisplayName(typeof b.name === "string" ? b.name : ""); if (!name.ok) bad({ name: name.error });
+    const pw = parsePassword(typeof b.password === "string" ? b.password : "", email.ok ? email.value : ""); if (!pw.ok) bad({ password: pw.error });
+    const hash = await hashPassword(pw.ok ? pw.value : "");
+    const r = await this.db.pool.query(
+      `INSERT INTO users(email, password_hash, display_name, role, status, email_verified_at, mfa_required)
+       VALUES ($1::citext, $2::text, $3::text, $4::text, 'active', now(), true) ON CONFLICT (email) DO NOTHING RETURNING id`,
+      [email.ok ? email.value : "", hash, name.ok ? name.value : "", b.role]);
+    if (!r.rows[0]) throw new ConflictException({ error: "email_taken" });
+    await writeAudit(this.db.pool, { actorId: c.userId, action: "admin.staff_created", subjectType: "user", subjectId: r.rows[0].id, ip, meta: { role: b.role } });
+    return { id: r.rows[0].id as string, email: email.ok ? email.value : "", role: b.role as string };
   }
 }

@@ -779,6 +779,20 @@ paths:
       security: [{sessionCookie: []}, {bearerSession: []}]
       responses:
         "200": {description: OK}
+  /v1/admin/staff:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Create an Admin or Support staff account (Super Admin); MFA is required at first sign-in"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, properties: {email: {type: string}, name: {type: string}, role: {type: string, enum: [admin_staff, support_staff]}, password: {type: string}}, required: [email, name, role, password]}
+      responses:
+        "201": {description: Created}
+        "403": {description: Super Admin only}
+        "409": {description: Email already registered}
   /v1/admin/organizations/{id}/verification:
     post:
       tags: ["Staff: admin"]
