@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { isLocale } from "../../../i18n/config";
+import { isLocale, type Locale } from "../../../i18n/config";
 import { getDict } from "../../../i18n";
 import { Crumbs, Shell } from "../../../components/Shell";
 import { JsonLd } from "../../../components/JsonLd";
@@ -21,7 +21,7 @@ export default async function Pricing({ params }: P) {
   if (!isLocale(locale)) notFound();
   const t = getDict(locale);
   const data = await getPricing();
-  const TITLE: Record<string, [string, string, string]> = {
+  const TITLE: Record<Locale, [string, string, string]> = {
     en: ["Verification message prices by country", "You are billed only for verification messages that were delivered successfully.", "Prices could not be loaded right now. Please try again in a moment."],
     ar: ["أسعار رسائل التحقق حسب الدولة", "تُحاسب فقط على رسائل التحقق التي تم تسليمها بنجاح", "تعذر تحميل الأسعار الآن. حاول مرة أخرى بعد قليل."],
     ru: ["Цены на сообщения проверки по странам", "Оплачиваются только успешно доставленные сообщения проверки.", "Не удалось загрузить цены. Повторите попытку позже."],
