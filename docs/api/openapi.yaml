@@ -958,6 +958,12 @@ paths:
       summary: "Read the company details selected for public display"
       responses:
         "200": {description: OK}
+  /v1/public/pricing:
+    get:
+      tags: ["Public"]
+      summary: "Read approved live OTP rates and wallet packages"
+      responses:
+        "200": {description: Current public billing catalog}
   /v1/admin/audit:
     get:
       tags: ["Staff: admin"]
