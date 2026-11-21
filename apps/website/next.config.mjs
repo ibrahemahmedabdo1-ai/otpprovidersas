@@ -15,7 +15,7 @@ const csp = [
 export default {
   reactStrictMode: true,
   poweredByHeader: false,
-  async redirects() {
+  async rewrites() {\n    const API_BASE_URL = (process.env.API_BASE_URL || "https://api.otpprovider.com").replace(/\\/+$/, "");\n    return [{ source: "/api/:path*", destination: `${API_BASE_URL}/:path*` }];\n  },\n  async redirects() {
     return [{ source: "/", destination: "/en", permanent: false }];
   },
   async headers() {
