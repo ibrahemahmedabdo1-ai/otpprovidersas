@@ -12,8 +12,8 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Staff MFA (TOTP + recovery codes), pending-MFA session guard | PASS | unit tests + local smoke 18/18 |
 | Admin deposits + Super Admin approval workflow | PASS | SQL suite + smoke |
 | Sandbox OTP API (send/verify/resend/cancel, test keys only) | PASS | local smoke 28/28 |
-| Live OTP sending | NOT IMPLEMENTED | live mode returns `live_mode_not_enabled` |
-| Resend email adapter | NOT TESTED | written; needs `RESEND_API_KEY` + verified domain (BLOCKED on credentials). Resend webhook receiver NOT IMPLEMENTED |
+| Live OTP sending | IMPLEMENTED IN PR #2; NOT DEPLOYED / NOT TESTED | Resend email send path, paid-wallet reservation, delivery webhook confirmation and charge-on-delivery; WhatsApp remains gated |
+| Resend email adapter | PARTIAL | API key and sending domain configured/verified; live OTP adapter and signed webhook receiver are in PR #2; production deploy and real inbox delivery test still required |
 | WhatsApp linked-device adapter | NOT IMPLEMENTED | must stay disabled until compliance sign-off; delivery is never guaranteed (see runbook) |
 | Support tickets API (customer create/reply, staff list/reply/internal note/assign/status; customers never see internal notes or staff e-mails) | NOT TESTED | compiles in CI; `scripts/smoke-tickets.mjs` written, not yet run |
 | Password reset (customers only; one-hour single-use token; all sessions ended) | NOT TESTED | compiles in CI; no smoke test yet |
@@ -22,7 +22,7 @@ Statuses: PASS (verified by a test that ran), FAIL, BLOCKED (needs something we 
 | Webhooks: management API, signed delivery worker (retries/backoff, SSRF re-check at delivery), `otp.verified` events | PARTIAL / NOT TESTED | signing, URL safety and backoff unit-tested (PASS); the worker and endpoints compile in CI but were never run. `otp.delivered`/`otp.failed` events need live sending. No UI yet |
 | Admin read-only users directory and audit log | NOT TESTED | compile in CI; UI in admin web |
 | Wallet-vs-ledger reconciliation (SQL function, hourly check, admin page) | PASS (SQL) / NOT TESTED (endpoint, page) | `tests/billing/reconciliation.test.sql` ran against Postgres 16 |
-| Routing integration, pricing/providers/legal-document admin | NOT IMPLEMENTED | |
+| Routing integration, pricing/providers/legal-document admin | PARTIAL | Provider/pricing/package admin exists; Resend email route is implemented in PR #2; WhatsApp route remains disabled pending persistent hosting and delivery receipts |
 
 ## Front ends
 | App | Status | Evidence |
@@ -55,10 +55,10 @@ Built and deployed (API and admin-web builds READY on Vercel):
 - Website redesigned (emerald identity, 6 languages, animated hero phone with an OTP message, packages, full footer); customer web restyled.
 
 Still NOT built or NOT verified:
-- Live OTP sending and provider routing, WhatsApp adapter (intentionally gated), Resend webhook receiver, webhook delivery monitoring UI.
+- Live email OTP code is implemented in PR #2 but is not deployed or end-to-end tested yet because the Vercel daily deployment limit is exhausted. Resend delivery webhook receiver is implemented but remains disabled until the API deploy is live. WhatsApp remains gated; its personal linked-device gateway has no reliable always-on hosting on the current Railway free plan.
 - Legal document publishing (needs counsel review), support ticket oversight in admin, organization editing.
 - admin-mobile has only Deposits, Approvals and Account; no pricing/providers screens yet.
 - Admin and support web are not yet restyled to the website identity.
 - Not verified live: login through the console proxy, password reset email, scheduler and webhook worker (the API runs as a serverless function; move it to a persistent host before real volume).
 - Local typecheck was not possible (no network for installs); correctness relies on the Vercel build.
-- Operator tasks: Resend domain, Android signing key, legal review, company address/email/phone env vars, DNS for subdomains, rotate and change the shared test passwords.
+- Operator tasks: complete a live email OTP test to a real inbox, enable the Resend provider only after that test, move the WhatsApp gateway to a persistent host, Android signing key, legal review, company address/email/phone env vars, DNS for subdomains, rotate and change the shared test passwords.

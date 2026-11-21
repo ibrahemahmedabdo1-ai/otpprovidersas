@@ -11,6 +11,7 @@ import { sha256 } from "../auth/tokens";
 import { isUuid, parseLocale } from "../auth/validators";
 import type { ApiKeyContext } from "./api-key.guard";
 import { decideResend, decideVerify } from "./otp-rules";
+import { LiveOtpDeliveryService } from "./live-otp-delivery.service";
 import { isOtpCode, maskRecipient, parseIdempotencyKey, parseRecipient, type Channel } from "./recipient";
 
 const SANDBOX_NOTE = "Sandbox mode: no message was sent and no balance was charged.";
@@ -18,7 +19,7 @@ const RECIPIENT_WINDOW_LIMIT = 5;          // sends per recipient per 10 minutes
 
 @Injectable()
 export class OtpService {
-  constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
+  constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig, private readonly live: LiveOtpDeliveryService) {}
 
   private tooMany(error: string, retryAfterSec?: number) {
     return new HttpException({ error, ...(retryAfterSec ? { retryAfterSec } : {}) }, HttpStatus.TOO_MANY_REQUESTS);
@@ -36,11 +37,12 @@ export class OtpService {
     if (!locale.ok) throw new BadRequestException({ error: "validation_failed", message: locale.error });
     const idem = parseIdempotencyKey(idemHeader);
     if (!idem.ok) throw new BadRequestException({ error: "validation_failed", message: idem.error });
-    this.requireTest(k);
     const { channel, to } = rec.value;
     if ((channel === "email" && !k.emailEnabled) || (channel === "whatsapp" && !k.whatsappEnabled)) {
       throw new ForbiddenException({ error: "channel_disabled", message: `The ${channel} channel is disabled for this project.` });
     }
+    if (k.mode === "live") return this.live.send(k, { channel, to, locale: locale.value }, idemHeader, correlationId, ip);
+    this.requireTest(k);
 
     const rhash = hmacHex(this.cfg.otpPepper, `recipient:${channel}:${to}`);
     if (k.dailyLimit !== null) {
@@ -115,6 +117,7 @@ export class OtpService {
   async resend(k: ApiKeyContext, body: unknown, ip: string | undefined) {
     const id = (body as { id?: unknown } | null)?.id;
     if (!isUuid(id)) throw new NotFoundException({ error: "not_found" });
+    if (k.mode === "live") return this.live.resend(k, id, ip);
     this.requireTest(k);
     const code = generateOtp(k.otpLength);
     const result = await this.db.tx(async (c) => {
@@ -142,10 +145,14 @@ export class OtpService {
     const id = (body as { id?: unknown } | null)?.id;
     if (!isUuid(id)) throw new NotFoundException({ error: "not_found" });
     const result = await this.db.tx(async (c) => {
-      const r = await c.query("SELECT status FROM otp_requests WHERE id = $1 AND project_id = $2 FOR UPDATE", [id, k.projectId]);
+      const r = await c.query("SELECT status, mode FROM otp_requests WHERE id = $1 AND project_id = $2 FOR UPDATE", [id, k.projectId]);
       const row = r.rows[0];
       if (!row) return "not_found" as const;
       if (row.status === "verified") return "conflict" as const;
+      if (row.mode === "live") {
+        const delivery = await c.query("SELECT status FROM otp_deliveries WHERE otp_request_id=$1 ORDER BY attempt_no DESC LIMIT 1", [id]);
+        if (["queued", "submitted", "unknown"].includes(String(delivery.rows[0]?.status ?? ""))) return "delivery_pending" as const;
+      }
       if (row.status !== "cancelled") {
         await c.query("UPDATE otp_requests SET status = 'cancelled' WHERE id = $1", [id]);
         await writeAudit(c, { actorId: null, action: "otp.cancel", subjectType: "otp_request", subjectId: id, ip: cleanIp(ip), meta: { projectId: k.projectId } });
@@ -154,6 +161,7 @@ export class OtpService {
     });
     if (result === "not_found") throw new NotFoundException({ error: "not_found" });
     if (result === "conflict") throw new ConflictException({ error: "not_pending" });
+    if (result === "delivery_pending") throw new ConflictException({ error: "delivery_pending", message: "The provider has not confirmed delivery or failure yet; cancellation is blocked to protect billing accuracy." });
     return { id, status: "cancelled" };
   }
 
