@@ -30,7 +30,7 @@ const en = {
       { name: "Growth", blurb: "For products with real sign-up traffic.", features: ["Everything in Starter", "Signed webhooks", "WhatsApp OTP, enabled after review", "Usage and wallet dashboard"], cta: "Get started" },
       { name: "Enterprise", blurb: "For high volume and custom needs.", features: ["Custom volumes", "Rates agreed in writing", "Dedicated onboarding", "Security review support"], cta: "Contact us" },
     ],
-    note: "Credit is added after an administrator verifies your payment. Per-message rates are shown in the console.",
+    note: "Credit is added after an administrator verifies your payment. Public rates are shown by channel and destination country below; final charges apply only to enabled, confirmed delivery routes.",
   },
   dev: {
     title: "Built for developers, by developers",

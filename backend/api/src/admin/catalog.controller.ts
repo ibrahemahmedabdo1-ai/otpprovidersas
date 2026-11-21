@@ -29,5 +29,6 @@ export class CatalogController {
 @Controller("v1/public")
 export class PublicController {
   constructor(private readonly s: CatalogService) {}
+  @Get("pricing") pricing() { return this.s.publicPricing(); }
   @Get("company") company() { return this.s.publicCompany(); }
 }

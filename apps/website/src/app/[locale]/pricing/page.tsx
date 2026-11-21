@@ -7,6 +7,7 @@ import { JsonLd } from "../../../components/JsonLd";
 import { breadcrumbLd, pageMetadata } from "../../../lib/seo";
 import { getLanding } from "../../../i18n/landing";
 import { Plans } from "../../../components/landing";
+import { CountryPricing } from "../../../components/CountryPricing";
 
 type P = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: P): Promise<Metadata> {
@@ -28,10 +29,11 @@ export default async function Pricing({ params }: P) {
       <div className="wrap section narrow">
         <Crumbs locale={locale} t={t} items={crumbs} />
         <h1>{t.pricing.h1}</h1>
-        <p className="lead">{t.pricing.intro}</p>
-        <ul className="ticks">{t.pricing.points.map((p) => <li key={p}>{p}</li>)}</ul>
+        <p className="lead">{locale === "ar" ? "الأسعار والباقات المعروضة تُقرأ من التعرفة المعتمدة ومسارات الإرسال الفعالة في النظام." : "Prices and wallet packages are read from the approved billing catalog and currently enabled delivery routes."}</p>
+        <ul className="ticks">{(locale === "ar" ? ["تظهر الباقات بعد اعتمادها وتفعيلها", "تظهر أسعار الدول عند تفعيل مسار الإرسال", "السعر المعروض هو نفسه المستخدم في الخصم", "لا يتم الخصم إلا بعد تأكيد التسليم"] : ["Packages appear only after approval and activation", "Country rates appear only when a delivery route is enabled", "The displayed rate is the exact rate used for billing", "Charges apply only after confirmed delivery"]).map((p) => <li key={p}>{p}</li>)}</ul>
       </div>
       <Plans locale={locale} l={l} />
+      <CountryPricing locale={locale} />
     </Shell>
   );
 }
