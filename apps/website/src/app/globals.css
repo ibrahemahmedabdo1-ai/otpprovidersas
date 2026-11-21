@@ -235,3 +235,7 @@ html[dir="rtl"] .bubble, [dir="rtl"] .bubble { border-radius: 10px 0 10px 10px; 
 :dir(rtl) .ticks li::before {
   transform: rotate(45deg);
 }
+
+.support-bubble { position: fixed; inset-inline-end: 18px; bottom: 18px; z-index: 25; display: inline-flex; align-items: center; gap: .55rem; padding: .75rem 1.1rem; border-radius: 999px; background: var(--em); color: var(--em-ink); font-weight: 600; text-decoration: none; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.support-bubble:hover { background: var(--em-2); }
+@media (max-width: 520px) { .support-bubble span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .support-bubble { padding: .9rem; } }
