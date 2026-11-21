@@ -66,7 +66,7 @@ export default function SupportChat({ locale, registerUrl }: { locale: Locale; r
     setChecking(true); setError("");
     void request<User>("/v1/auth/me").then(async r => {
       if (!alive) return;
-      if (r.ok && r.data?.role === "customer") { setUser(r.data); await loadTickets(); }
+      if (r.ok && r.data?.role === "customer" && !r.data.mfaPending) { setUser(r.data); await loadTickets(); }\n      else if (r.ok && r.data?.mfaPending) setError(c.mfa);
       else if (r.ok) setError(c.roleError);
       setChecking(false);
     });
