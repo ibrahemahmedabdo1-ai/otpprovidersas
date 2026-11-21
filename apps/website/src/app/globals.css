@@ -301,3 +301,5 @@ html[dir="rtl"] .bubble, [dir="rtl"] .bubble { border-radius: 10px 0 10px 10px; 
 .pricing-disclaimer { font-size: .85rem; line-height: 1.7; margin: 16px 0 28px; }
 .country-list { max-height: 440px; overflow: auto; }
 @media(max-width:640px) { .rate-summary { grid-template-columns: 1fr; } .rate-card { padding: 16px; } }
+
+.rate-draft-notice { padding: 13px 16px; margin: 16px 0 20px; border: 1px solid rgba(245,158,11,.42); border-radius: 12px; background: rgba(245,158,11,.09); color: inherit; line-height: 1.65; font-size: .92rem; }
