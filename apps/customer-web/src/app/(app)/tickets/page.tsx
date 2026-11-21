@@ -31,7 +31,7 @@ export default function Tickets() {
     <>
       <div className="pagehead"><h1>{t.tickets.title}</h1><p>{t.tickets.sub}</p></div>
       {err && <Alert>{err}</Alert>}
-      <form className="card" onSubmit={create} noValidate>
+      <form id="new-ticket" className="card" onSubmit={create} noValidate>
         <h2>{t.tickets.newTitle}</h2>
         <Field label={t.tickets.subjectLabel}>{(p) => <input {...p} maxLength={150} value={subject} onChange={(e) => setSubject(e.target.value)} />}</Field>
         <Field label={t.tickets.bodyLabel} hint={t.tickets.bodyHint}>{(p) => <textarea {...p} rows={5} maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)} />}</Field>
