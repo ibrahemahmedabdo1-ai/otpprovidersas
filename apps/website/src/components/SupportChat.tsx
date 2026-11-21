@@ -116,7 +116,7 @@ export default function SupportChat({ locale, registerUrl }: { locale: Locale; r
         <span>{c.label}</span><i className="support-bubble__ping" aria-hidden="true" />
       </button>
       {open && <div className="support-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-        <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-chat-title" dir={rtl ? "rtl" : "ltr"}>
+        <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-chat-title" dir={rtl ? "rtl" : "ltr"} onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
           <header className="support-modal-head">
             <div><strong id="support-chat-title">{c.title}</strong><small>{c.subtitle}</small></div>
             <button type="button" className="support-close" onClick={close} aria-label={c.close}>×</button>
