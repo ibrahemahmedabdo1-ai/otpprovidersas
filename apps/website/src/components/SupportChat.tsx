@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CONSOLE } from "../lib/site";
 
 type Locale = "en" | "ar" | "ru" | "es" | "de" | "zh";
 type User = { id: string; email: string; name: string; role: string; mfaPending?: boolean };
@@ -33,7 +32,7 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   } catch { return { ok:false, status:0, data:null }; }
 }
 
-export default function SupportChat({ locale }: { locale: Locale }) {
+export default function SupportChat({ locale, registerUrl }: { locale: Locale; registerUrl: string }) {
   const c = COPY[locale];
   const rtl = locale === "ar";
   const [open,setOpen] = useState(false);
@@ -129,7 +128,7 @@ export default function SupportChat({ locale }: { locale: Locale }) {
                 <label>{c.email}<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} /></label>
                 <label>{c.password}<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} /></label>
                 <button className="support-submit" disabled={busy}>{busy ? c.signingIn : c.signIn}</button>
-                <a href={CONSOLE.register} target="_blank" rel="noreferrer">{c.register}</a>
+                <a href={registerUrl} target="_blank" rel="noreferrer">{c.register}</a>
               </form>
             ) : ticketId && thread ? (
               <div className="support-thread">
