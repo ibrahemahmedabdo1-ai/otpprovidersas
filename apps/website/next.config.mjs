@@ -15,7 +15,11 @@ const csp = [
 export default {
   reactStrictMode: true,
   poweredByHeader: false,
-  async rewrites() {\n    const API_BASE_URL = (process.env.API_BASE_URL || "https://api.otpprovider.com").replace(/\\/+$/, "");\n    return [{ source: "/api/:path*", destination: `${API_BASE_URL}/:path*` }];\n  },\n  async redirects() {
+  async rewrites() {
+    const API_BASE_URL = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "https://api.otpprovider.com").replace(/\\/+$/, "");
+    return [{ source: "/api/:path*", destination: `${API_BASE_URL}/:path*` }];
+  },
+  async redirects() {
     return [{ source: "/", destination: "/en", permanent: false }];
   },
   async headers() {
