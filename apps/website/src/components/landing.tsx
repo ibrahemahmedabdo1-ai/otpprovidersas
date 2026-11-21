@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import type { Locale } from "../i18n/config";
 import type { Landing } from "../i18n/landing";
-import { API_URL, CONSOLE, PLANS, contactHref, formatUsd } from "../lib/site";
+import { API_URL, CONSOLE, contactHref, formatUsd } from "../lib/site";
 
 const Svg = ({ children, size = 22 }: { children: ReactNode; size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
