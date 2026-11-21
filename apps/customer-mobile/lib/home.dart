@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core.dart';
+import 'keys.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -137,6 +138,8 @@ class _WalletState extends State<WalletTab> {
         Text('Top-up requests', style: Theme.of(context).textTheme.titleMedium),
         if (deps.isEmpty) const Text('No top-up requests yet.'),
         for (final d in deps) ListTile(dense: true, title: Text(usd((d as Map<String, dynamic>)['amountUsd'])), subtitle: Text('${d['status']}'.replaceAll('_', ' '))),
+        const Divider(height: 32),
+        const TransactionsList(),
       ]),
     );
   }
@@ -182,8 +185,8 @@ class _ProjectsState extends State<ProjectsTab> {
         FilledButton(onPressed: busy ? null : _create, child: Text(busy ? 'Creating' : 'Create project')),
         const Divider(height: 32),
         if (items == null) const LinearProgressIndicator(),
-        if (items != null && items!.isEmpty) const Text('No projects yet. Create one, then create a test API key on the website console.'),
-        for (final p in items ?? <dynamic>[]) ListTile(title: Text('${(p as Map<String, dynamic>)['name']}'), subtitle: Text('${p['activeKeys']} active keys')),
+        if (items != null && items!.isEmpty) const Text('No projects yet. Create one, then open it to create an API key.'),
+        for (final p in items ?? <dynamic>[]) ListTile(title: Text('${(p as Map<String, dynamic>)['name']}'), subtitle: Text('${p['activeKeys']} active keys'), trailing: const Icon(Icons.chevron_right), onTap: () async { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProjectPage(project: p))); await _load(); }),
       ]),
     );
   }
