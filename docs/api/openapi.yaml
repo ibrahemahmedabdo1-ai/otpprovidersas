@@ -912,6 +912,17 @@ paths:
       responses:
         "200": {description: Processing completed}
         "403": {description: Forbidden}
+  /v1/webhooks/resend:
+    post:
+      tags: ["Internal"]
+      summary: "Resend delivery receipts; the Svix signature is verified against the raw request bytes"
+      parameters:
+        - {name: svix-id, in: header, required: true, schema: {type: string}}
+        - {name: svix-timestamp, in: header, required: true, schema: {type: string}}
+        - {name: svix-signature, in: header, required: true, schema: {type: string}}
+      responses:
+        "200": {description: Receipt processed or ignored as a duplicate}
+        "400": {description: Raw body unavailable or signature invalid}
   /v1/public/company:
     get:
       tags: ["Public"]
