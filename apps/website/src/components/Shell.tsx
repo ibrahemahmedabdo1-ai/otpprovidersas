@@ -26,10 +26,6 @@ function LangMenu({ locale, path, label, up = false }: { locale: Locale; path: s
   );
 }
 
-const SUPPORT_LABEL: Record<Locale, string> = {
-  en: "Start a support chat", ar: "ابدأ محادثة مع الدعم", ru: "Начать чат с поддержкой", es: "Iniciar chat de soporte", de: "Support-Chat starten", zh: "开始客服对话",
-};
-
 export async function Shell({ locale, t, path, children }: { locale: Locale; t: Dict; path: string; children: ReactNode }) {
   const l = getLanding(locale);
   const f = l.footer;
