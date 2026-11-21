@@ -76,7 +76,7 @@ export function CountryPricing({ locale }: { locale: string }) {
       <div className="country-picker">
         <label htmlFor="otp-country">{t.country}</label>
         <select id="otp-country" value={code} onChange={(e) => setCode(e.target.value)}>
-          {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{isArabic ? c.ar : c.name} (+{c.code === "EG" ? "20" : c.code === "IN" ? "91" : c.code === "SA" ? "966" : c.code === "AE" ? "971" : c.code === "US" ? "1" : c.code === "GB" ? "44" : c.code === "DE" ? "49" : c.code === "FR" ? "33" : c.code === "PK" ? "92" : c.code === "NG" ? "234" : c.code === "ZA" ? "27" : c.code === "ID" ? "62" : c.code === "MA" ? "212" : c.code === "IQ" ? "964" : c.code === "IL" ? "972" : c.code === "QA" ? "974" : c.code === "KW" ? "965" : c.code === "ES" ? "34" : c.code === "IT" ? "39" : c.code === "NL" ? "31" : c.code === "CO" ? "57" : c.code === "TR" ? "90" : c.code === "BD" ? "880" : "55"})</option>)}
+          {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{isArabic ? c.ar : c.name}</option>)}
         </select>
       </div>
       <div className="rate-summary">
