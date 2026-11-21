@@ -26,7 +26,7 @@ function LangMenu({ locale, path, label, up = false }: { locale: Locale; path: s
 }
 
 const SUPPORT_LABEL: Record<Locale, string> = {
-  en: "Chat with support", ar: "تحدث مع الدعم", ru: "Чат с поддержкой", es: "Chatear con soporte", de: "Support-Chat", zh: "联系客服",
+  en: "Start a support chat", ar: "ابدأ محادثة مع الدعم", ru: "Начать чат с поддержкой", es: "Iniciar chat de soporte", de: "Support-Chat starten", zh: "开始客服对话",
 };
 
 export async function Shell({ locale, t, path, children }: { locale: Locale; t: Dict; path: string; children: ReactNode }) {
@@ -53,9 +53,9 @@ export async function Shell({ locale, t, path, children }: { locale: Locale; t: 
         </div>
       </header>
       <main id="main">{children}</main>
-      <a className="support-bubble" href={`${CONSOLE.home}/tickets`} rel="noopener" aria-label={SUPPORT_LABEL[locale]}>
+      <a className="support-bubble" href={`${CONSOLE.home}/tickets?source=website#new-ticket`} aria-label={SUPPORT_LABEL[locale]} title={SUPPORT_LABEL[locale]} data-label={SUPPORT_LABEL[locale]}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-        <span>{SUPPORT_LABEL[locale]}</span>
+        <span>{SUPPORT_LABEL[locale]}</span><i className="support-bubble__ping" aria-hidden="true" />
       </a>
       <footer className="foot">
         <div className="wrap">
