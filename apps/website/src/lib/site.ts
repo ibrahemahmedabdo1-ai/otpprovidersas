@@ -30,13 +30,13 @@ export const contactHref = () => (COMPANY.email ? `mailto:${COMPANY.email}` : CO
  * (those are set by an administrator in the console). Edit the numbers here. `null` means "custom".
  */
 export const PLANS: { id: "starter" | "growth" | "enterprise"; amountUsd: number | null; popular?: boolean }[] = [
-  { id: "starter", amountUsd: 25 },
-  { id: "growth", amountUsd: 100, popular: true },
-  { id: "enterprise", amountUsd: null },
+  { id: "starter", amountUsd: 4.99 },
+  { id: "growth", amountUsd: 19.99, popular: true },
+  { id: "enterprise", amountUsd: 49.99 },
 ];
 
 export const formatUsd = (locale: string, amount: number) =>
-  new Intl.NumberFormat(locale === "ar" ? "ar-EG-u-nu-latn" : locale, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
+  new Intl.NumberFormat(locale === "ar" ? "ar-EG-u-nu-latn" : locale, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 
 type CompanyInfo = { legalName: string; address: string[]; email: string; phone: string };
 /** Company details saved by an admin in the admin console; falls back to the NEXT_PUBLIC_COMPANY_* variables. */
