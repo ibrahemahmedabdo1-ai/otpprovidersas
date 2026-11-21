@@ -29,6 +29,7 @@ jobs:
       - name: Generate Android project
         run: |
           flutter create --org com.otpprovider --project-name customer --platforms android .
+          rm -rf test
           M=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
       - run: flutter pub get
