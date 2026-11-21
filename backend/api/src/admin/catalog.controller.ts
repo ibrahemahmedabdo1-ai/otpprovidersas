@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard, type AuthedRequest } from "../auth/auth.guard";
 import { CatalogService } from "./catalog.service";
 
@@ -30,4 +30,5 @@ export class CatalogController {
 export class PublicController {
   constructor(private readonly s: CatalogService) {}
   @Get("company") company() { return this.s.publicCompany(); }
+  @Get("pricing") @Header("Cache-Control", "public, max-age=30, s-maxage=30") pricing() { return this.s.publicPricing(); }
 }
