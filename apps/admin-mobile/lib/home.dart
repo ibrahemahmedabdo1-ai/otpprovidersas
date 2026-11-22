@@ -275,7 +275,7 @@ class _SystemMapTabState extends State<SystemMapTab>{
   void initState(){super.initState();_load();}
   Future<void> _load() async{
     setState(()=>busy=true);final r=await Api.get('/v1/dashboard/system');if(!mounted)return;
-    setState(()=>{busy=false;if(r.ok){data=r.map;err='';}else{err=errorText(r);}});
+    setState(() { busy=false;if(r.ok){data=r.map;err='';}else{err=errorText(r);} });
   }
   Color _color(String s)=>s=='healthy'?Colors.green:s=='critical'?Colors.red:Colors.orange;
   @override
