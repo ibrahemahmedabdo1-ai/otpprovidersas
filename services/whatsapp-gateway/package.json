@@ -1,0 +1,15 @@
+{
+  "name": "@otpprovider/whatsapp-linked-device-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts",
+    "check": "bun build index.ts --target=bun --outdir /tmp/otp-wa-gateway-build"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.18",
+    "postgres": "3.4.7",
+    "qrcode": "1.5.4"
+  }
+}
