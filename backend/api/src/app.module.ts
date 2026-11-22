@@ -28,12 +28,14 @@ import { DbService } from "./db.service";
 import { HealthController } from "./health.controller";
 import { DashboardController } from "./dashboard/dashboard.controller";
 import { DashboardService } from "./dashboard/dashboard.service";
+import { CustomerTopupController, SupportTopupController } from "./deposits/topup-workflow.controller";
+import { TopupWorkflowService } from "./deposits/topup-workflow.service";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, DashboardController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController],
+  controllers: [HealthController, DashboardController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, CustomerTopupController, SupportTopupController, WebhooksController],
   providers: [
-    DbService, DashboardService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
+    DbService, DashboardService, TopupWorkflowService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
