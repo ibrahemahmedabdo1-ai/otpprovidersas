@@ -72,6 +72,30 @@ paths:
         "200": {description: OK}
         "400": {description: Validation failed}
         "429": {description: Rate limited}
+  /v1/auth/sso/start:
+    post:
+      tags: ["Auth"]
+      summary: "Single sign-in: an authenticated session (MFA complete) gets a one-time code (30 s) to open one panel it is allowed to use."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [target], properties: {target: {type: string, enum: [console, admin, support]}}}
+      responses:
+        "200": {description: "{ code }"}
+        "403": {description: This role cannot open that panel}
+  /v1/auth/sso/redeem:
+    post:
+      tags: ["Auth"]
+      summary: "Exchange a single-use hand-off code for a session cookie on the calling panel's origin."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [code], properties: {code: {type: string}}}
+      responses:
+        "200": {description: Signed in}
+        "400": {description: Code invalid, expired or already used}
   /v1/auth/customers/{id}/password-reset:
     post:
       tags: ["Auth"]

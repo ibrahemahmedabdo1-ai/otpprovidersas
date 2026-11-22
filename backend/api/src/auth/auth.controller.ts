@@ -56,6 +56,19 @@ export class AuthController {
     return { user: r.user, expiresAt: r.expires, ...(r.mfa ? { mfa: r.mfa } : {}), ...(mobile ? { token: r.token } : {}) };   // bearer token only for native apps
   }
 
+  /** Single sign-in: an authenticated, MFA-complete session asks for a one-time code to open one panel. */
+  @Post("sso/start") @HttpCode(200) @UseGuards(AuthGuard)
+  ssoStart(@Body() body: unknown, @Req() req: AuthedRequest) { return this.auth.ssoStart(req.auth!, body, req.ip); }
+
+  /** The panel redeems the code through its own same-origin proxy; the cookie is set on the panel's origin. */
+  @Post("sso/redeem") @HttpCode(200)
+  async ssoRedeem(@Body() body: unknown, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    this.limit(this.verifyLimit, req.ip ?? "?");
+    const r = await this.auth.ssoRedeem(body, req.ip, req.header("user-agent"));
+    res.cookie(SESSION_COOKIE, r.token, { httpOnly: true, secure: this.cfg.nodeEnv === "production", sameSite: "lax", path: "/", maxAge: Math.max(0, r.expires.getTime() - Date.now()) });
+    return { user: r.user, expiresAt: r.expires };
+  }
+
   @Post("logout") @HttpCode(204) @AllowPendingMfa() @UseGuards(AuthGuard)
   async logout(@Req() req: AuthedRequest, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.auth!, req.ip);
