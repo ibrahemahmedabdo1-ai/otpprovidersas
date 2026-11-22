@@ -388,6 +388,23 @@ paths:
       responses:
         "200": {description: OK}
         "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/console/stats:
+    get:
+      tags: ["Console"]
+      summary: "Dashboard statistics for the signed-in organization: 30-day sends, delivery rate per channel, spend and low-balance flag. Aggregated from live data only."
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/stats:
+    get:
+      tags: ["Admin"]
+      summary: "Admin dashboard statistics: customers, OTP volume, revenue and liabilities, pending deposits, provider and device health, open tickets. Admin and Super Admin only."
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/console/wallet:
     get:
       tags: ["Console"]

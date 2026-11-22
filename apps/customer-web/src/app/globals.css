@@ -89,3 +89,10 @@ tr:last-child td { border-bottom: 0; }
 .authcard .brand span { font-size: 1.15rem; letter-spacing: -.01em; }
 @keyframes authIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .chip.ok { background: rgba(52, 211, 153, .12); } .chip.warn { background: rgba(251, 191, 36, .12); } .chip.bad { background: rgba(248, 113, 113, .12); }
+.chart { margin: 0 0 1rem; } .chart svg { width: 100%; height: auto; display: block; }
+.chart .bar-sent { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; } .chart .bar-del { fill: var(--brand); } .chart .bar-spend { fill: var(--warn); }
+.chart .axis { stroke: var(--line); stroke-width: 1; } .chart .tick { fill: var(--muted); font-size: 11px; }
+.legend { color: var(--muted); font-size: .82rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.sw { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; } .sw-sent { background: var(--surface-2); border: 1px solid var(--line); } .sw-del { background: var(--brand); margin-inline-start: .6rem; }
+.rate { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: .4rem 0; } .rate > span { display: block; height: 100%; background: var(--brand); }
+.alert.lowbal { margin-bottom: 1rem; }

@@ -6,8 +6,20 @@ import { Alert, Empty, Loading, Money } from "../../components/ui";
 import { api, errorText, type Project, type Wallet } from "../../lib/api";
 import { fmt } from "../../i18n";
 import { fmtDate, fmtUsd } from "../../lib/format";
+import { SendsChart, SpendChart, type SeriesPoint } from "../../components/Charts";
+
+type Stats = {
+  periodDays: number;
+  balance: { availableUsd: number; lowBalance: boolean; thresholdUsd: number };
+  requests: { live: number; test: number };
+  series: SeriesPoint[];
+  channels: { channel: "email" | "whatsapp"; requests: number; verified: number; delivered: number; failed: number; unknown: number; inFlight: number; deliveryRatePct: number | null }[];
+  spend: { totalUsd: number; byDay: { day: string; spent: number }[] };
+};
 
 type Usage = { periodDays: number; items: { day: string; channel: string; mode: string; requests: number; verified: number }[] };
+
+const money = (n: number, locale: string) => new Intl.NumberFormat(locale, { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(n);
 
 export default function Dashboard() {
   const { t, locale, user, testKey } = useApp();
@@ -17,6 +29,8 @@ export default function Dashboard() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [usageErr, setUsageErr] = useState("");
   const [loadingUsage, setLoadingUsage] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [statsErr, setStatsErr] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -25,6 +39,11 @@ export default function Dashboard() {
       if (!live) return;
       if (w.ok && w.data) setWallet(w.data); else setErr(errorText(t, w));
       if (p.ok && p.data) setProjects(p.data); else setErr((e) => e || errorText(t, p));
+    })();
+    void (async () => {
+      const r = await api<Stats>("GET", "/v1/console/stats");
+      if (!live) return;
+      if (r.ok && r.data) setStats(r.data); else setStatsErr(errorText(t, r));
     })();
     return () => { live = false; };
   }, [t]);
@@ -57,6 +76,45 @@ export default function Dashboard() {
         </div>
       )}
       <p><Link href="/wallet">{t.dashboard.openWallet}</Link></p>
+
+      {stats?.balance.lowBalance && (
+        <div className="lowbal"><Alert kind="warn"><strong>{t.stats.lowTitle}.</strong> {fmt(t.stats.lowBody, { amount: money(stats.balance.availableUsd, locale), threshold: money(stats.balance.thresholdUsd, locale) })}</Alert></div>
+      )}
+
+      <h2 style={{ marginTop: "1.6rem" }}>{t.stats.title}</h2>
+      {statsErr && <Alert>{t.stats.loadFail} {statsErr}</Alert>}
+      {!stats && !statsErr && <Loading />}
+      {stats && (
+        <>
+          <div className="grid">
+            <Money label={t.stats.live} value={String(stats.requests.live)} />
+            <Money label={t.stats.test} value={String(stats.requests.test)} />
+            <Money label={t.stats.spendTotal} value={money(stats.spend.totalUsd, locale)} />
+          </div>
+          <div className="card">
+            <h3>{t.stats.sendsTitle}</h3>
+            {stats.requests.live === 0 ? <p className="muted">{t.stats.noData}</p> : (
+              <SendsChart data={stats.series} label={t.stats.sendsLabel} sentLabel={t.stats.sent} deliveredLabel={t.stats.delivered} locale={locale} />
+            )}
+          </div>
+          <h3>{t.stats.channelsTitle}</h3>
+          <div className="grid">
+            {stats.channels.map((c) => (
+              <div className="stat" key={c.channel}>
+                <div className="stat-label">{c.channel === "email" ? t.common.email : t.common.whatsapp}</div>
+                <div className="stat-value" dir="ltr">{c.deliveryRatePct === null ? "—" : `${c.deliveryRatePct}%`}</div>
+                <div className="rate" aria-hidden="true"><span style={{ width: `${c.deliveryRatePct ?? 0}%` }} /></div>
+                <div className="stat-hint">{c.deliveryRatePct === null ? t.stats.noAttempts : `${t.stats.delivered} ${c.delivered} · ${t.stats.failed} ${c.failed} · ${t.stats.unknown} ${c.unknown} · ${t.stats.verified} ${c.verified}/${c.requests}`}</div>
+              </div>
+            ))}
+          </div>
+          <p className="hint">{t.stats.rateNote}</p>
+          <div className="card">
+            <h3>{t.stats.spendTitle}</h3>
+            {stats.spend.totalUsd === 0 ? <p className="muted">{t.stats.spendNone}</p> : <SpendChart data={stats.spend.byDay} label={t.stats.spendLabel} locale={locale} />}
+          </div>
+        </>
+      )}
 
       <h2 style={{ marginTop: "1.6rem" }}>{t.dashboard.projectsTitle}</h2>
       {projects === null ? <Loading /> : projects.length === 0 ? (
