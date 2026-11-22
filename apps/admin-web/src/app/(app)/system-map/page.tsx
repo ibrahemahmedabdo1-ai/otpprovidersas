@@ -18,9 +18,10 @@ export default function SystemMap(){
  <div className="stat"><div className="stat-label">Critical</div><div className="stat-value">{data.counts.critical}</div></div>
  <div className="stat"><div className="stat-label">Unknown</div><div className="stat-value">{data.counts.unknown}</div></div>
  </div>
- <div className="tablewrap"><table><thead><tr><th>Component</th><th>Status</th><th>Details</th><th>Impact</th><th>Recommended action</th><th>Last check</th></tr></thead><tbody>
- {data.items.map(x=><tr key={x.key}><td><strong>{x.label}</strong></td><td><span className={`chip ${x.state==="healthy"?"ok":x.state==="critical"?"bad":"warn"}`}>{statusLabel[x.state]}</span></td><td>{x.detail}</td><td>{x.impact}</td><td>{x.action}</td><td>{fmtDate(x.lastCheckedAt)}</td></tr>)}
- </tbody></table></div>
+ <div className="grid">{data.items.map(x=><article className="card" key={x.key}>
+ <div className="row" style={{justifyContent:"space-between"}}><strong>{x.label}</strong><span className={`chip ${x.state==="healthy"?"ok":x.state==="critical"?"bad":"warn"}`}>{statusLabel[x.state]}</span></div>
+ <p>{x.detail}</p><p className="muted"><strong>Impact:</strong> {x.impact}</p><p><strong>Action:</strong> {x.action}</p><p className="muted">Last check: {fmtDate(x.lastCheckedAt)}</p>
+ </article>)}</div>
  <p className="hint">Checks cover API reachability, database connectivity, provider health freshness, WhatsApp device state, webhook queue, suspicious logins, OTP outcomes and configured email sender domains. They do not replace end-to-end provider tests or storage attachment scanning.</p>
  </>}
  </>;
