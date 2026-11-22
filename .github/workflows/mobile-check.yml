@@ -21,16 +21,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [customer-mobile, support-mobile, admin-mobile]
+        include:
+          - app: customer-mobile
+            project: customer
+          - app: support-mobile
+            project: support
+          - app: admin-mobile
+            project: admin
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+      - name: Generate current Android v2 project
+        run: |
+          flutter create --org com.otpprovider --project-name ${{ matrix.project }} --platforms android .
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
       - name: Resolve dependencies
         run: flutter pub get
       - name: Analyze
