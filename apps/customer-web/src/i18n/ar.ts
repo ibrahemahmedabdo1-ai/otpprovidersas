@@ -141,7 +141,7 @@ const ar: Dict = {
   },
   settings: {
     title: "الإعدادات", sub: "حسابك واللغة والمظهر والجلسات.",
-    accountTitle: "الحساب", emailLabel: "البريد الإلكتروني", nameLabel: "الاسم", roleLabel: "نوع الحساب", roleCustomer: "عميل",
+    accountTitle: "الحساب", emailLabel: "البريد الإلكتروني", nameLabel: "الاسم", roleLabel: "نوع الحساب", roleCustomer: "عميل", roleSuperAdmin: "سوبر أدمن",
     languageTitle: "اللغة", languageHint: "تُحفظ في ملف تعريف ارتباط داخل هذا المتصفح.",
     themeTitle: "المظهر", themeHint: "اختر سمة أو اتبع جهازك.",
     sessionsTitle: "الجلسات النشطة", sessionsSub: "الأجهزة المسجّلة الدخول حاليًا إلى حسابك. ألغِ أي جلسة لا تعرفها.",

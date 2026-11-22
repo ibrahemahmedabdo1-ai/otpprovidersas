@@ -140,7 +140,7 @@ const en = {
   },
   settings: {
     title: "Settings", sub: "Your account, language, appearance and sessions.",
-    accountTitle: "Account", emailLabel: "Email", nameLabel: "Name", roleLabel: "Account type", roleCustomer: "Customer",
+    accountTitle: "Account", emailLabel: "Email", nameLabel: "Name", roleLabel: "Account type", roleCustomer: "Customer", roleSuperAdmin: "Super Admin",
     languageTitle: "Language", languageHint: "Saved in a cookie in this browser.",
     themeTitle: "Appearance", themeHint: "Choose a theme or follow your device.",
     sessionsTitle: "Active sessions", sessionsSub: "Devices currently signed in to your account. Revoke any you do not recognise.",

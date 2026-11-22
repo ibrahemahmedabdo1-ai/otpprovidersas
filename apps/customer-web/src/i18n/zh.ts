@@ -141,7 +141,7 @@ const zh: Dict = {
   },
   settings: {
     title: "设置", sub: "您的账户、语言、外观和会话。",
-    accountTitle: "账户", emailLabel: "邮箱", nameLabel: "姓名", roleLabel: "账户类型", roleCustomer: "客户",
+    accountTitle: "账户", emailLabel: "邮箱", nameLabel: "姓名", roleLabel: "账户类型", roleCustomer: "客户", roleSuperAdmin: "超级管理员",
     languageTitle: "语言", languageHint: "保存在此浏览器的 Cookie 中。",
     themeTitle: "外观", themeHint: "选择主题，或跟随您的设备。",
     sessionsTitle: "活动会话", sessionsSub: "当前登录您账户的设备。请撤销任何您不认识的设备。",
