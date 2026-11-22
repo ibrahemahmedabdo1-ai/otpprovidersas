@@ -98,7 +98,7 @@ export class TicketsService {
     const r = await this.db.pool.query(
       `SELECT t.id, t.subject, t.status, t.priority, t.created_at, t.updated_at, u.email AS requester, a.email AS assignee, o.name AS organization
        FROM tickets t JOIN users u ON u.id = t.created_by LEFT JOIN users a ON a.id = t.assignee_id JOIN organizations o ON o.id = t.organization_id
-       WHERE ($1::text IS NULL OR t.status = $1::text) ORDER BY t.updated_at DESC LIMIT 100`, [status]);
+       WHERE ($1::text IS NULL OR t.status = $1::text) AND ($2::text <> 'support_staff' OR t.assignee_id IS NULL OR t.assignee_id=$3::uuid) ORDER BY t.updated_at DESC LIMIT 100`, [status,ctx.role,ctx.userId]);
     return r.rows.map((t) => ({ id: t.id as string, subject: t.subject as string, status: t.status as string, priority: t.priority as string, requester: t.requester as string, organization: t.organization as string, assignee: (t.assignee as string | null) ?? null, createdAt: t.created_at, updatedAt: t.updated_at }));
   }
 
@@ -107,7 +107,7 @@ export class TicketsService {
     const id = this.id(ticketId);
     const t = await this.db.pool.query(
       `SELECT t.id, t.subject, t.status, t.priority, t.created_at, t.updated_at, u.email AS requester, a.email AS assignee
-       FROM tickets t JOIN users u ON u.id = t.created_by LEFT JOIN users a ON a.id = t.assignee_id WHERE t.id = $1::uuid`, [id]);
+       FROM tickets t JOIN users u ON u.id = t.created_by LEFT JOIN users a ON a.id = t.assignee_id WHERE t.id = $1::uuid AND ($2::text <> 'support_staff' OR t.assignee_id IS NULL OR t.assignee_id=$3::uuid)`, [id,ctx.role,ctx.userId]);
     if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
     const m = await this.db.pool.query(
       `SELECT m.id, m.body, m.internal, m.created_at, COALESCE(u.display_name,u.email::text,CASE WHEN m.reply_identity='system' THEN 'OTPProvider System' ELSE 'Staff' END) AS author FROM messages m JOIN conversations c ON c.id = m.conversation_id LEFT JOIN users u ON u.id = m.author_id
@@ -125,8 +125,8 @@ export class TicketsService {
     const message = text((body as { body?: unknown } | null)?.body, 1, 5000, "body");
     const identity = ctx.role === "support_staff" ? "support" : "admin";
     return this.db.tx(async (c) => {
-      const t = await c.query("SELECT status FROM tickets WHERE id = $1::uuid FOR UPDATE", [id]);
-      if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
+      const t = await c.query("SELECT status,assignee_id FROM tickets WHERE id = $1::uuid FOR UPDATE", [id]);
+      if (!t.rows[0] || (ctx.role === "support_staff" && t.rows[0].assignee_id && t.rows[0].assignee_id !== ctx.userId)) throw new NotFoundException({ error: "not_found" });
       if (t.rows[0].status === "closed") throw new ConflictException({ error: "ticket_closed" });
       const conv = await c.query("SELECT id FROM conversations WHERE ticket_id = $1::uuid LIMIT 1", [id]);
       await c.query("INSERT INTO messages(conversation_id, author_id, reply_identity, internal, body) VALUES ($1::uuid, $2::uuid, $3::text, $4::boolean, $5::text)", [conv.rows[0].id, ctx.userId, identity, internal, message]);
@@ -141,7 +141,7 @@ export class TicketsService {
     this.staff(ctx);
     const id = this.id(ticketId);
     return this.db.tx(async (c) => {
-      const r = await c.query("UPDATE tickets SET assignee_id = $2::uuid WHERE id = $1::uuid RETURNING id", [id, ctx.userId]);
+      const r = await c.query("UPDATE tickets SET assignee_id = $2::uuid WHERE id = $1::uuid AND (assignee_id IS NULL OR assignee_id=$2::uuid OR $3::text <> 'support_staff') RETURNING id", [id, ctx.userId, ctx.role]);
       if (!r.rows[0]) throw new NotFoundException({ error: "not_found" });
       await writeAudit(c, { actorId: ctx.userId, action: "ticket.assigned", subjectType: "ticket", subjectId: id, ip: cleanIp(ip) });
       return { ok: true };
@@ -154,7 +154,7 @@ export class TicketsService {
     const s = (body as { status?: unknown } | null)?.status;
     if (typeof s !== "string" || !(TICKET_STATUSES as readonly string[]).includes(s)) throw new BadRequestException({ error: "validation_failed", fields: { status: TICKET_STATUSES.join(", ") } });
     return this.db.tx(async (c) => {
-      const r = await c.query("UPDATE tickets SET status = $2::text WHERE id = $1::uuid RETURNING id", [id, s]);
+      const r = await c.query("UPDATE tickets SET status = $2::text WHERE id = $1::uuid AND (assignee_id IS NULL OR assignee_id=$3::uuid OR $4::text <> 'support_staff') RETURNING id", [id, s, ctx.userId, ctx.role]);
       if (!r.rows[0]) throw new NotFoundException({ error: "not_found" });
       await writeAudit(c, { actorId: ctx.userId, action: "ticket.status_changed", subjectType: "ticket", subjectId: id, ip: cleanIp(ip), meta: { status: s } });
       return { status: s };
