@@ -149,7 +149,7 @@ class _WalletState extends State<WalletTab> {
         const Divider(height: 32),
         Text('Top-up requests', style: Theme.of(context).textTheme.titleMedium),
         if (deps.isEmpty) const Text('No top-up requests yet.'),
-        for (final d in deps) ListTile(dense: true, title: Text(usd((d as Map<String, dynamic>)['amountUsd'])), subtitle: Text('${d['status']}'.replaceAll('_', ' '))),
+        for (final d in deps) ListTile(dense: true, title: Text(usd((d as Map<String, dynamic>)['amountUsd'])), subtitle: Text('${d['status']}'.replaceAll('_', ' ')), trailing: d['ticketId'] is String ? IconButton(icon:const Icon(Icons.chat_outlined),onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SupportThreadPage(ticketId:'${d['ticketId']}')))) : null),
         const Divider(height: 32),
         const TransactionsList(),
       ]),
