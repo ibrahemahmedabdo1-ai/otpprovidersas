@@ -44,6 +44,7 @@ jobs:
       - name: Generate current Android v2 project
         run: |
           flutter create --org com.otpprovider --project-name ${{ matrix.project }} --platforms android .
+          rm -rf test
           M=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$M" || sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
       - name: Resolve dependencies
