@@ -73,7 +73,7 @@ class _HomeState extends State<Home> {
     return Scaffold(
       appBar: AppBar(title: const Text('OTPProvider')),
       body: Column(children: [
-        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('OTP sending is sandbox-only. Support conversations are delivered to our support team. Sandbox OTP requests do not send messages or charge your wallet.', style: TextStyle(fontSize: 12))),
+        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('Live Email OTP requires an approved organization, funded wallet and enabled project. WhatsApp OTP is not yet available until delivery receipts and billing reconciliation are verified. Sandbox requests do not send messages or charge your wallet.', style: TextStyle(fontSize: 12))),
         Expanded(child: pages[tab]),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: const [
