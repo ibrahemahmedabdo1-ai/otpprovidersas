@@ -66,12 +66,12 @@ export class TicketsService {
     const t = await this.db.pool.query("SELECT id, subject, status, priority, created_at, updated_at FROM tickets WHERE id = $1::uuid AND organization_id = $2::uuid", [id, org]);
     if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
     const m = await this.db.pool.query(
-      `SELECT m.id, m.body, m.created_at, m.author_id = $2::uuid AS mine FROM messages m JOIN conversations c ON c.id = m.conversation_id
+      `SELECT m.id, m.body, m.created_at, m.reply_identity, m.author_id = $2::uuid AS mine FROM messages m JOIN conversations c ON c.id = m.conversation_id
        WHERE c.ticket_id = $1::uuid AND m.internal = false ORDER BY m.created_at, m.id`, [id, ctx.userId]);
     const x = t.rows[0];
     return {
       ticket: { id: x.id as string, subject: x.subject as string, status: x.status as string, priority: x.priority as string, createdAt: x.created_at, updatedAt: x.updated_at },
-      messages: m.rows.map((r) => ({ id: r.id as string, from: (r.mine as boolean) ? "you" : "support", body: r.body as string, createdAt: r.created_at })),
+      messages: m.rows.map((r) => ({ id: r.id as string, from: (r.reply_identity as string) === "system" ? "system" : (r.mine as boolean) ? "you" : "support", body: r.body as string, createdAt: r.created_at })),
     };
   }
 
@@ -110,7 +110,7 @@ export class TicketsService {
        FROM tickets t JOIN users u ON u.id = t.created_by LEFT JOIN users a ON a.id = t.assignee_id WHERE t.id = $1::uuid`, [id]);
     if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
     const m = await this.db.pool.query(
-      `SELECT m.id, m.body, m.internal, m.created_at, u.email AS author FROM messages m JOIN conversations c ON c.id = m.conversation_id JOIN users u ON u.id = m.author_id
+      `SELECT m.id, m.body, m.internal, m.created_at, COALESCE(u.display_name,u.email::text,CASE WHEN m.reply_identity='system' THEN 'OTPProvider System' ELSE 'Staff' END) AS author FROM messages m JOIN conversations c ON c.id = m.conversation_id LEFT JOIN users u ON u.id = m.author_id
        WHERE c.ticket_id = $1::uuid ORDER BY m.created_at, m.id`, [id]);
     const x = t.rows[0];
     return {
