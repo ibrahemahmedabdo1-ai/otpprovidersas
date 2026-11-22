@@ -13,7 +13,7 @@ export class AuthController {
   private loginIpLimit = new RateLimiter(20, 15 * 60_000);       // 20 attempts / 15 min / IP
   private loginEmailLimit = new RateLimiter(10, 15 * 60_000);    // 10 attempts / 15 min / email
   private verifyLimit = new RateLimiter(20, 15 * 60_000);
-  private forgotIpLimit = new RateLimiter(10, 60 * 60_000);    // 10 reset requests / hour / IP
+  private resendIpLimit = new RateLimiter(10, 60 * 60_000);\n  private resendEmailLimit = new RateLimiter(3, 60 * 60_000);\n  private forgotIpLimit = new RateLimiter(10, 60 * 60_000);    // 10 reset requests / hour / IP
   private forgotEmailLimit = new RateLimiter(3, 60 * 60_000);   // 3 / hour / address
   constructor(private readonly auth: AuthService, private readonly mfa: MfaService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
@@ -27,6 +27,15 @@ export class AuthController {
     this.limit(this.registerLimit, req.ip ?? "?");
     await this.auth.register(body, req.ip);
     return { status: "accepted", message: "If this email can be registered, a verification email has been sent." };
+  }
+
+  @Post("resend-verification") @HttpCode(202)
+  async resendVerification(@Body() body: unknown,@Req() req: Request) {
+    this.limit(this.resendIpLimit,req.ip??"?");
+    const email=(body as {email?:unknown}|null)?.email;
+    if(typeof email==="string") this.limit(this.resendEmailLimit,email.trim().toLowerCase().slice(0,254));
+    await this.auth.resendVerification(body,req.ip);
+    return {status:"accepted",message:"If this account needs verification, a new email will be sent shortly."};
   }
 
   @Post("password/forgot") @HttpCode(202)
