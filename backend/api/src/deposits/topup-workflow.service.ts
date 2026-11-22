@@ -40,6 +40,18 @@ export class TopupWorkflowService {
       return {id:depositId,ticketId,status:"requested",amountUsd:amountText};
     });
   }
+  async accountStatus(ctx: AuthContext) {
+    const orgId=this.customerOrg(ctx);
+    const r=await this.db.pool.query(`SELECT o.status,cv.status AS verification_status
+      FROM organizations o LEFT JOIN LATERAL (SELECT status FROM customer_verifications WHERE organization_id=o.id ORDER BY created_at DESC LIMIT 1) cv ON true
+      WHERE o.id=$1::uuid`,[orgId]);
+    if(!r.rows[0]) throw new ConflictException({error:"organization_not_found"});
+    const organizationActive=r.rows[0].status==="active";
+    const verified=r.rows[0].verification_status==="approved";
+    return {organizationStatus:r.rows[0].status as string,verificationStatus:(r.rows[0].verification_status as string|null)??"not_submitted",
+      emailLiveEligible:organizationActive&&verified,whatsappLiveEligible:false,
+      message:!organizationActive?"Your organization is not active. Contact Support.":!verified?"Your email is verified, but live OTP sending is waiting for administrator account review. Contact Support if you need help.":"Your account is approved for eligible live email OTP. WhatsApp live delivery remains unavailable until delivery receipts are verified."};
+  }
   async supportList(ctx: AuthContext) {
     if(!["support_staff","admin_staff","super_admin"].includes(ctx.role)) throw new ForbiddenException({error:"forbidden"});
     const r=await this.db.pool.query(`SELECT d.id,d.amount_micro_usd,d.status,d.method_note,d.support_evidence_note,d.created_at,d.ticket_id,o.name AS organization,u.email AS customer_email
