@@ -7,7 +7,7 @@ SELECT id AS c2 FROM users WHERE email='c2@x.co' \gset
 SELECT id AS sup FROM users WHERE email='sup@x.co' \gset
 INSERT INTO organizations(name,owner_user_id) VALUES ('O1',:'c1'),('O2',:'c2');
 INSERT INTO memberships(organization_id,user_id,role) SELECT id, owner_user_id, 'owner' FROM organizations;
-INSERT INTO wallets(organization_id) SELECT id FROM organizations;
+INSERT INTO wallets(organization_id) SELECT id FROM organizations ON CONFLICT DO NOTHING;
 INSERT INTO promotions(name,kind,value,active) VALUES ('Welcome','extra_credit',5000000,true),('Old','extra_credit',1000000,false),('Pct','percent_discount',10,true);
 INSERT INTO coupons(code,promotion_id,max_redemptions,max_per_org) SELECT 'WELCOME5', id, 2, 1 FROM promotions WHERE name='Welcome';
 INSERT INTO coupons(code,promotion_id) SELECT 'OLD', id FROM promotions WHERE name='Old';
