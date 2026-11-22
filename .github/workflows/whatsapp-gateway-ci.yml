@@ -1,0 +1,26 @@
+name: WhatsApp Gateway CI
+on:
+  push:
+    branches:
+      - fix/whatsapp-gateway-log-redaction
+    paths:
+      - "services/whatsapp-gateway/**"
+      - ".github/workflows/whatsapp-gateway-ci.yml"
+  pull_request:
+    paths:
+      - "services/whatsapp-gateway/**"
+      - ".github/workflows/whatsapp-gateway-ci.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.21
+      - name: Install dependencies
+        working-directory: services/whatsapp-gateway
+        run: bun install
+      - name: Build gateway
+        working-directory: services/whatsapp-gateway
+        run: bun run check
