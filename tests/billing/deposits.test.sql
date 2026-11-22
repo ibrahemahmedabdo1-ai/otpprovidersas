@@ -19,6 +19,12 @@ INSERT INTO wallets(organization_id) VALUES (:'org');
 SELECT id AS w FROM wallets WHERE organization_id=:'org' \gset
 
 EXECUTE req_dep(:'w', 25000000, 'bank transfer ref 123') \gset d1_
+-- Link the deposit to its support conversation. System messages must not impersonate a user.
+INSERT INTO tickets(organization_id,created_by,subject,priority) VALUES (:'org',:'cust','Top-up test','high') RETURNING id AS ticket_id \gset
+INSERT INTO conversations(ticket_id,organization_id) VALUES (:'ticket_id',:'org') RETURNING id AS conversation_id \gset
+UPDATE deposits SET ticket_id=:'ticket_id'::uuid WHERE id=:'d1_id'::uuid;
+INSERT INTO messages(conversation_id,author_id,reply_identity,internal,body) VALUES (:'conversation_id',NULL,'system',false,'Top-up request received');
+
 EXECUTE wal(:'org');
 SELECT pending_micro_usd=25000000 AND paid_micro_usd=0 AS ok FROM wallets WHERE id=:'w' \gset
 \if :ok \echo PASS deposit request records pending only, no credit \else SELECT 1/0; \endif
@@ -56,6 +62,11 @@ SELECT (:'again' = 'f') AS ok \gset
 SELECT (paid_micro_usd=25000000) AS ok FROM wallets WHERE id=:'w' \gset
 \if :ok \echo PASS balance unchanged after repeated approval \else SELECT 1/0; \endif
 SELECT (count(*)=1) AS ok FROM ledger_entries WHERE idempotency_key = 'deposit:' || :'d1_id' AND amount_micro_usd=25000000 AND actor_id=:'adm' \gset
+SELECT (count(*)=2) AS ok FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.ticket_id=:'ticket_id'::uuid AND m.author_id IS NULL AND m.reply_identity='system' AND m.internal=false \gset
+\if :ok \echo PASS system greeting and approval notice are visible without impersonation \else SELECT 1/0; \endif
+SELECT (count(*)=1) AS ok FROM notifications WHERE user_id=:'cust'::uuid AND kind='deposit_approved' \gset
+\if :ok \echo PASS approval creates a customer notification \else SELECT 1/0; \endif
+
 \if :ok \echo PASS exactly one immutable ledger entry, attributed to the approving admin \else SELECT 1/0; \endif
 
 -- reject path and super admin direct approval
