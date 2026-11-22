@@ -55,6 +55,7 @@ export class TicketsService {
       const tid = t.rows[0].id as string;
       const conv = await c.query("INSERT INTO conversations(ticket_id, organization_id) VALUES ($1::uuid, $2::uuid) RETURNING id", [tid, org]);
       await c.query("INSERT INTO messages(conversation_id, author_id, reply_identity, internal, body) VALUES ($1::uuid, $2::uuid, 'self', false, $3::text)", [conv.rows[0].id, ctx.userId, message]);
+      await c.query("INSERT INTO messages(conversation_id,author_id,reply_identity,internal,body) VALUES ($1::uuid,NULL,'system',false,$2::text)", [conv.rows[0].id, `أهلاً بك في OTPProvider 👋 تم استلام رسالتك بنجاح. سيراجع فريق الدعم رسالتك ويتواصل معك قريبًا. رقم التذكرة: ${tid}.\nHello from OTPProvider 👋 Your message has been received. Our Support team will review it and get back to you. Ticket: ${tid}.`]);
       await writeAudit(c, { actorId: ctx.userId, action: "ticket.created", subjectType: "ticket", subjectId: tid, ip: cleanIp(ip) });
       return { id: tid, status: "open" };
     });
