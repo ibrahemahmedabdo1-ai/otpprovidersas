@@ -1,36 +1,33 @@
 "use client";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Empty, Loading } from "../../components/ui";
 import { api, errorText, fmtDate } from "../../lib/api";
-import { STATUSES, STATUS_LABEL, UNAVAILABLE, type Ticket } from "../../lib/tickets";
 
-export default function Tickets() {
-  const [status, setStatus] = useState<string>("open");
-  const [rows, setRows] = useState<Ticket[] | null>(null);
-  const [err, setErr] = useState("");
-  const load = useCallback(async () => {
-    setErr("");
-    const r = await api<Ticket[]>("GET", `/v1/support/tickets?status=${status}`);
-    if (r.ok && r.data) setRows(r.data);
-    else { setRows([]); setErr(r.status === 404 ? UNAVAILABLE : errorText(r)); }
-  }, [status]);
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 15000); return () => window.clearInterval(timer); }, [load]);
-  return (
-    <>
-      <div className="pagehead"><h1>Tickets</h1><p>New customer conversations appear automatically. Inbox refreshes every 15 seconds. Support can reply and add internal notes, but cannot see secrets or change balances.</p></div>
-      <div className="seg" role="group" aria-label="Filter by status">
-        {STATUSES.map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{STATUS_LABEL[s]}</button>)}
-      </div>
-      {err && <Alert kind={err === UNAVAILABLE ? "warn" : "error"}>{err}</Alert>}
-      {rows === null ? <Loading /> : rows.length === 0 ? (!err && <Empty title="No tickets" body="Nothing matches this filter." />) : (
-        <div className="tablewrap"><table>
-          <thead><tr><th scope="col">Subject</th><th scope="col">Requester</th><th scope="col">Priority</th><th scope="col">Assignee</th><th scope="col">Updated</th></tr></thead>
-          <tbody>{rows.map((t) => (
-            <tr key={t.id}><td><Link href={`/tickets/${t.id}`}>{t.subject}</Link></td><td>{t.requester}</td><td>{t.priority}</td><td>{t.assignee ?? "Unassigned"}</td><td>{fmtDate(t.updatedAt)}</td></tr>
-          ))}</tbody>
-        </table></div>
-      )}
-    </>
-  );
+type CustomerTicket = { ticketId:string; subject:string; status:string; priority:string; updatedAt:string; organization:string; email:string; paidBalanceUsd:number; giftBalanceUsd:number; reservedUsd:number };
+type Dashboard = { assignedTickets:number; openTickets:number; waitingTickets:number; escalatedTickets:number; resolvedTickets:number; customers:CustomerTicket[] };
+
+const usd=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
+export default function SupportDashboard() {
+ const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState("");
+ const load=useCallback(async()=>{const r=await api<Dashboard>("GET","/v1/dashboard/support");if(r.ok&&r.data){setData(r.data);setError("");}else setError(errorText(r));},[]);
+ useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),30000);return()=>window.clearInterval(timer);},[load]);
+ return <>
+  <div className="pagehead"><h1>Support Dashboard</h1><p>Your assigned workload, customer balances and latest activity. Balances are read-only.</p><button className="btn ghost small" onClick={()=>void load()}>Refresh</button></div>
+  {error&&<Alert kind="error">{error}</Alert>}
+  {!data?<Loading/>:<>
+   <div className="grid">
+    <div className="stat big"><div className="stat-label">Assigned tickets</div><div className="stat-value">{data.assignedTickets}</div><div className="stat-hint">Currently assigned to you</div></div>
+    <div className="stat"><div className="stat-label">Open</div><div className="stat-value">{data.openTickets}</div></div>
+    <div className="stat"><div className="stat-label">Waiting for customer</div><div className="stat-value">{data.waitingTickets}</div></div>
+    <div className="stat"><div className="stat-label">Escalated</div><div className="stat-value">{data.escalatedTickets}</div></div>
+    <div className="stat"><div className="stat-label">Resolved</div><div className="stat-value">{data.resolvedTickets}</div></div>
+   </div>
+   <div className="pagehead"><h2>Assigned customers & wallet balances</h2><p>Paid wallet and promotional gift balance are displayed separately. Gift credit is not cash and is not withdrawable.</p></div>
+   {data.customers.length===0?<Empty title="No assigned customers yet" body="Tickets assigned to you will appear here."/>:
+   <div className="tablewrap"><table><thead><tr><th>Customer</th><th>Ticket</th><th>Status</th><th>Paid wallet</th><th>Gift balance</th><th>Reserved</th><th>Last activity</th></tr></thead><tbody>
+    {data.customers.map(c=><tr key={c.ticketId}><td><strong>{c.email}</strong><div className="muted">{c.organization}</div></td><td>{c.subject}</td><td><span className="chip">{c.status}</span></td><td>{usd(c.paidBalanceUsd)}</td><td>{usd(c.giftBalanceUsd)}</td><td>{usd(c.reservedUsd)}</td><td>{fmtDate(c.updatedAt)}</td></tr>)}
+   </tbody></table></div>}
+   <div className="row"><a className="btn" href="/tickets">Open ticket inbox</a></div>
+  </>}
+ </>;
 }
