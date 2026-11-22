@@ -1,0 +1,39 @@
+name: Mobile CI
+on:
+  pull_request:
+    paths:
+      - "apps/customer-mobile/**"
+      - "apps/support-mobile/**"
+      - "apps/admin-mobile/**"
+      - ".github/workflows/mobile-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/customer-mobile/**"
+      - "apps/support-mobile/**"
+      - "apps/admin-mobile/**"
+      - ".github/workflows/mobile-check.yml"
+permissions:
+  contents: read
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [customer-mobile, support-mobile, admin-mobile]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+      - name: Build debug APK
+        run: flutter build apk --debug
