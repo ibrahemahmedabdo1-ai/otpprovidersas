@@ -228,11 +228,11 @@ class _AccountTabState extends State<AccountTab> {
     final a=await Api.get('/v1/console/status');
     final b=await Api.get('/v1/console/verification');
     if(!mounted)return;
-    setState((){if(a.ok)status=a.map;if(b.ok){verification=b.map;useCase.text='\u0024{b.map['useCase']??''}';website.text='\u0024{b.map['website']??''}';}});
+    setState((){if(a.ok)status=a.map;if(b.ok){verification=b.map;useCase.text='${b.map['useCase']??''}';website.text='${b.map['website']??''}';}});
   }
   Future<void> _submit() async {
     if(useCase.text.trim().length<20){setState(()=>err='Describe your business and intended OTP use in at least 20 characters.');return;}
-    setState(()=>{busy=true;err='';ok='';});
+    setState(() { busy=true; err=''; ok=''; });
     final r=await Api.post('/v1/console/verification',{'useCase':useCase.text.trim(),'website':website.text.trim().isEmpty?null:website.text.trim()});
     if(!mounted)return;
     setState(()=>busy=false);
@@ -242,15 +242,15 @@ class _AccountTabState extends State<AccountTab> {
   Widget build(BuildContext context) {
     final approved=verification?['status']=='approved';
     return ListView(padding:const EdgeInsets.all(16),children:[
-      ListTile(title:const Text('Email'),subtitle:Text('\u0024{widget.me['email']}')),
-      ListTile(title:const Text('Name'),subtitle:Text('\u0024{widget.me['name']}')),
+      ListTile(title:const Text('Email'),subtitle:Text('${widget.me['email']}')),
+      ListTile(title:const Text('Name'),subtitle:Text('${widget.me['name']}')),
       const Divider(height:32),
       Text('Account activation',style:Theme.of(context).textTheme.titleMedium),
-      if(status!=null) Banner2('\u0024{status!['message']??''}',ok:status!['emailAccountApproved']==true),
+      if(status!=null) Banner2('${status!['message']??''}',ok:status!['emailAccountApproved']==true),
       if(verification==null) const LinearProgressIndicator(),
       if(verification!=null) ...[
-        ListTile(title:const Text('Organization verification'),subtitle:Text('\u0024{verification!['status']??'not_submitted'}'.replaceAll('_',' '))),
-        if(verification!['note']!=null) Banner2('\u0024{verification!['note']}'),
+        ListTile(title:const Text('Organization verification'),subtitle:Text('${verification!['status']??'not_submitted'}'.replaceAll('_',' '))),
+        if(verification!['note']!=null) Banner2('${verification!['note']}'),
         if(!approved) ...[
           TextField(controller:useCase,minLines:3,maxLines:5,maxLength:1000,decoration:const InputDecoration(labelText:'Business and intended OTP use (20–1000 characters)',border:OutlineInputBorder())),
           const SizedBox(height:8),
