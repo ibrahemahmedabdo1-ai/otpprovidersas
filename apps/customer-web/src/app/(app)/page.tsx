@@ -7,11 +7,13 @@ import { api, errorText, type Project, type Wallet } from "../../lib/api";
 import { fmt } from "../../i18n";
 import { fmtDate, fmtUsd } from "../../lib/format";
 
-type Usage = { periodDays: number; items: { day: string; channel: string; mode: string; requests: number; verified: number }[] };\ntype AccountStatus = { organizationStatus:string; verificationStatus:string; emailAccountApproved:boolean; whatsappLiveEligible:boolean; message:string };
+type Usage = { periodDays: number; items: { day: string; channel: string; mode: string; requests: number; verified: number }[] };
+type AccountStatus = { organizationStatus:string; verificationStatus:string; emailAccountApproved:boolean; whatsappLiveEligible:boolean; message:string };
 
 export default function Dashboard() {
   const { t, locale, user, testKey } = useApp();
-  const [wallet, setWallet] = useState<Wallet | null>(null);\n  const [accountStatus,setAccountStatus]=useState<AccountStatus|null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [accountStatus,setAccountStatus]=useState<AccountStatus|null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [err, setErr] = useState("");
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -24,7 +26,8 @@ export default function Dashboard() {
       const [w, p, s] = await Promise.all([api<Wallet>("GET", "/v1/console/wallet"), api<Project[]>("GET", "/v1/console/projects"), api<AccountStatus>("GET","/v1/console/status")]);
       if (!live) return;
       if (w.ok && w.data) setWallet(w.data); else setErr(errorText(t, w));
-      if (p.ok && p.data) setProjects(p.data); else setErr((e) => e || errorText(t, p));\n      if (s.ok && s.data) setAccountStatus(s.data);
+      if (p.ok && p.data) setProjects(p.data); else setErr((e) => e || errorText(t, p));
+      if (s.ok && s.data) setAccountStatus(s.data);
     })();
     return () => { live = false; };
   }, [t]);
@@ -44,7 +47,8 @@ export default function Dashboard() {
         <h1>{first ? fmt(t.dashboard.hello, { name: first }) : t.dashboard.helloNoName}</h1>
         <p>{t.dashboard.sub}</p>
       </div>
-      {err && <Alert>{err}</Alert>}\n      {accountStatus && (!accountStatus.emailAccountApproved || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />Email live: {accountStatus.emailAccountApproved ? "Account approved; wallet and project checks still apply" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
+      {err && <Alert>{err}</Alert>}
+      {accountStatus && (!accountStatus.emailAccountApproved || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />Email live: {accountStatus.emailAccountApproved ? "Account approved; wallet and project checks still apply" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
 
       <h2>{t.dashboard.walletTitle}</h2>
       {!wallet ? <Loading /> : (
