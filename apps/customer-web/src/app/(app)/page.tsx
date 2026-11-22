@@ -7,7 +7,7 @@ import { api, errorText, type Project, type Wallet } from "../../lib/api";
 import { fmt } from "../../i18n";
 import { fmtDate, fmtUsd } from "../../lib/format";
 
-type Usage = { periodDays: number; items: { day: string; channel: string; mode: string; requests: number; verified: number }[] };\ntype AccountStatus = { organizationStatus:string; verificationStatus:string; emailLiveEligible:boolean; whatsappLiveEligible:boolean; message:string };
+type Usage = { periodDays: number; items: { day: string; channel: string; mode: string; requests: number; verified: number }[] };\ntype AccountStatus = { organizationStatus:string; verificationStatus:string; emailAccountApproved:boolean; whatsappLiveEligible:boolean; message:string };
 
 export default function Dashboard() {
   const { t, locale, user, testKey } = useApp();
@@ -44,7 +44,7 @@ export default function Dashboard() {
         <h1>{first ? fmt(t.dashboard.hello, { name: first }) : t.dashboard.helloNoName}</h1>
         <p>{t.dashboard.sub}</p>
       </div>
-      {err && <Alert>{err}</Alert>}\n      {accountStatus && (!accountStatus.emailLiveEligible || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />Email live: {accountStatus.emailLiveEligible ? "Ready after wallet and project checks" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
+      {err && <Alert>{err}</Alert>}\n      {accountStatus && (!accountStatus.emailAccountApproved || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />Email live: {accountStatus.emailAccountApproved ? "Account approved; wallet and project checks still apply" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
 
       <h2>{t.dashboard.walletTitle}</h2>
       {!wallet ? <Loading /> : (
