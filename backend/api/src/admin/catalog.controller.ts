@@ -9,6 +9,9 @@ export class CatalogController {
   @Get("packages") packages(@Req() r: AuthedRequest) { return this.s.packages(r.auth!); }
   @Post("packages") @HttpCode(201) createPackage(@Body() b: unknown, @Req() r: AuthedRequest) { return this.s.createPackage(r.auth!, b, r.ip ?? null); }
   @Post("packages/:id/set") @HttpCode(200) setPackage(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setPackage(r.auth!, id, b, r.ip ?? null); }
+  @Get("coupons") coupons(@Req() r: AuthedRequest) { return this.s.coupons(r.auth!); }
+  @Post("coupons") @HttpCode(201) createCoupon(@Body() b: unknown, @Req() r: AuthedRequest) { return this.s.createCoupon(r.auth!, b, r.ip ?? null); }
+  @Post("coupons/:id/set") @HttpCode(200) setCoupon(@Param("id") id: string, @Body() b: unknown, @Req() r: AuthedRequest) { return this.s.setCoupon(r.auth!, id, b, r.ip ?? null); }
   @Get("prices") prices(@Req() r: AuthedRequest) { return this.s.prices(r.auth!); }
   @Post("prices") @HttpCode(201) createPrice(@Body() b: unknown, @Req() r: AuthedRequest) { return this.s.createPrice(r.auth!, b, r.ip ?? null); }
   @Post("prices/:id/approve") @HttpCode(200) approvePrice(@Param("id") id: string, @Req() r: AuthedRequest) { return this.s.approvePrice(r.auth!, id, r.ip ?? null); }

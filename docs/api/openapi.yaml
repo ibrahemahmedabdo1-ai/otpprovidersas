@@ -797,6 +797,44 @@ paths:
       security: [{sessionCookie: []}, {bearerSession: []}]
       responses:
         "200": {description: OK}
+  /v1/admin/coupons:
+    get:
+      tags: ["Admin"]
+      summary: "List coupons (Admin or Super Admin)."
+      responses:
+        "200": {description: OK}
+    post:
+      tags: ["Admin"]
+      summary: "Super Admin only: create a promo-credit coupon (amount, total limit, uses per customer organization and expiry are the Super Admin's choice)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [code, name, creditUsd], properties: {code: {type: string}, name: {type: string}, creditUsd: {type: number}, maxRedemptions: {type: integer}, maxPerOrg: {type: integer}, expiresAt: {type: string}}}
+      responses:
+        "201": {description: Created}
+        "409": {description: Code already exists}
+  /v1/admin/coupons/{id}/set:
+    post:
+      tags: ["Admin"]
+      summary: "Super Admin only: activate or deactivate a coupon."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: OK}
+  /v1/console/wallet/coupons/redeem:
+    post:
+      tags: ["Console"]
+      summary: "Redeem a coupon for promotional credit (limited to 10 attempts per hour)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [code], properties: {code: {type: string}}}
+      responses:
+        "200": {description: Credited}
+        "400": {description: coupon_invalid, coupon_exhausted or coupon_already_used}
+        "429": {description: Too many attempts}
   /v1/admin/staff:
     post:
       tags: ["Staff: admin"]

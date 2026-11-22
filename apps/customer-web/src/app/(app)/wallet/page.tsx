@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useApp } from "../../../components/Providers";
 import { Alert, Empty, Field, Loading, Money } from "../../../components/ui";
+import { CouponRedeem } from "../../../components/CouponRedeem";
 import { api, errorText, type Deposit, type Tx, type Wallet } from "../../../lib/api";
 import { fmt } from "../../../i18n";
 import { fmtDate, fmtUsd, validAmount } from "../../../lib/format";
@@ -62,6 +63,7 @@ export default function WalletPage() {
     <>
       <div className="pagehead"><h1>{t.wallet.title}</h1><p>{t.wallet.sub}</p></div>
       {err && <Alert>{err}</Alert>}
+      <CouponRedeem onDone={() => void loadAll()} />
       {!w ? <Loading /> : (
         <div className="grid">
           <Money big label={t.wallet.available} hint={t.wallet.availableHint} value={fmtUsd(w.available.usd, locale)} />
