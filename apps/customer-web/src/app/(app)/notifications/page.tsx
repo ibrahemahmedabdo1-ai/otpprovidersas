@@ -2,7 +2,8 @@
 import {useCallback,useEffect,useState} from "react";
 import {useApp} from "../../../components/Providers";
 import {Alert,Empty,Loading} from "../../../components/ui";
-import {api,errorText,fmtDate} from "../../../lib/api";
+import {api,errorText} from "../../../lib/api";
+import {fmtDate} from "../../../lib/format";
 type Notice={id:string;kind:string;title:string;body:string|null;readAt:string|null;createdAt:string};
 export default function NotificationsPage(){
  const {t}=useApp();const [rows,setRows]=useState<Notice[]|null>(null),[err,setErr]=useState("");
