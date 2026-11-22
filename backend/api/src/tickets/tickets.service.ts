@@ -28,7 +28,7 @@ export class TicketsService {
 
   private id(v: string) { if (!isUuid(v)) throw new NotFoundException({ error: "not_found" }); return v; }
   private org(ctx: AuthContext): string {
-    if (ctx.role !== "customer" || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
+    if ((ctx.role !== "customer" && ctx.role !== "super_admin") || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
     return ctx.organizationId;
   }
   private staff(ctx: AuthContext) {

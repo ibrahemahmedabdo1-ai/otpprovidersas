@@ -3,7 +3,7 @@ import 'home.dart';
 
 class AppConfig {
   static const title = 'OTPProvider';
-  static const roles = <String>['customer'];
+  static const roles = <String>['customer', 'super_admin'];
   static const loginHint = 'Sandbox only. Live sending is not enabled yet and nothing here charges you.';
 }
 
