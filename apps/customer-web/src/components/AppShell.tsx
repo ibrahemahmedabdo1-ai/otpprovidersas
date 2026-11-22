@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div></div>
     );
   }
-  const nav: [string, string][] = [["/", t.nav.dashboard], ["/projects", t.nav.projects], ["/wallet", t.nav.wallet], ["/playground", t.nav.playground], ["/tickets", t.nav.tickets], ["/settings", t.nav.settings]];
+  const nav: [string, string][] = [["/", t.nav.dashboard], ["/projects", t.nav.projects], ["/wallet", t.nav.wallet], ["/playground", t.nav.playground], ["/tickets", t.nav.tickets], ["/notifications", "Notifications"], ["/settings", t.nav.settings]];
   const active = (h: string) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/"));
   return (
     <>
