@@ -141,7 +141,7 @@ const ru: Dict = {
   },
   settings: {
     title: "Настройки", sub: "Аккаунт, язык, оформление и сеансы.",
-    accountTitle: "Аккаунт", emailLabel: "Эл. почта", nameLabel: "Имя", roleLabel: "Тип аккаунта", roleCustomer: "Клиент",
+    accountTitle: "Аккаунт", emailLabel: "Эл. почта", nameLabel: "Имя", roleLabel: "Тип аккаунта", roleCustomer: "Клиент", roleSuperAdmin: "Суперадминистратор",
     languageTitle: "Язык", languageHint: "Сохраняется в cookie в этом браузере.",
     themeTitle: "Оформление", themeHint: "Выберите тему или следуйте настройкам устройства.",
     sessionsTitle: "Активные сеансы", sessionsSub: "Устройства, на которых выполнен вход в ваш аккаунт. Завершите те, которые не узнаёте.",

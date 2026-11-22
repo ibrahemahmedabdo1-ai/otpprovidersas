@@ -141,7 +141,7 @@ const es: Dict = {
   },
   settings: {
     title: "Ajustes", sub: "Tu cuenta, idioma, apariencia y sesiones.",
-    accountTitle: "Cuenta", emailLabel: "Correo", nameLabel: "Nombre", roleLabel: "Tipo de cuenta", roleCustomer: "Cliente",
+    accountTitle: "Cuenta", emailLabel: "Correo", nameLabel: "Nombre", roleLabel: "Tipo de cuenta", roleCustomer: "Cliente", roleSuperAdmin: "Superadministrador",
     languageTitle: "Idioma", languageHint: "Se guarda en una cookie de este navegador.",
     themeTitle: "Apariencia", themeHint: "Elige un tema o sigue el de tu dispositivo.",
     sessionsTitle: "Sesiones activas", sessionsSub: "Dispositivos con la sesión iniciada en tu cuenta. Revoca los que no reconozcas.",

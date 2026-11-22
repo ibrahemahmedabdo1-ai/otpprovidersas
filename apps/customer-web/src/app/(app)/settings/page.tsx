@@ -34,7 +34,7 @@ export default function Settings() {
         <dl style={{ margin: 0 }}>
           <dt className="muted">{t.settings.emailLabel}</dt><dd style={{ margin: "0 0 .6rem" }}>{user?.email}</dd>
           <dt className="muted">{t.settings.nameLabel}</dt><dd style={{ margin: "0 0 .6rem" }}>{user?.name}</dd>
-          <dt className="muted">{t.settings.roleLabel}</dt><dd style={{ margin: 0 }}>{t.settings.roleCustomer}</dd>
+          <dt className="muted">{t.settings.roleLabel}</dt><dd style={{ margin: 0 }}>{user?.role === "super_admin" ? t.settings.roleSuperAdmin : t.settings.roleCustomer}</dd>
         </dl>
       </div>
       <div className="card">

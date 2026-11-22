@@ -141,7 +141,7 @@ const de: Dict = {
   },
   settings: {
     title: "Einstellungen", sub: "Ihr Konto, Sprache, Darstellung und Sitzungen.",
-    accountTitle: "Konto", emailLabel: "E-Mail", nameLabel: "Name", roleLabel: "Kontotyp", roleCustomer: "Kunde",
+    accountTitle: "Konto", emailLabel: "E-Mail", nameLabel: "Name", roleLabel: "Kontotyp", roleCustomer: "Kunde", roleSuperAdmin: "Super-Admin",
     languageTitle: "Sprache", languageHint: "Wird in einem Cookie in diesem Browser gespeichert.",
     themeTitle: "Darstellung", themeHint: "Wählen Sie ein Design oder folgen Sie Ihrem Gerät.",
     sessionsTitle: "Aktive Sitzungen", sessionsSub: "Geräte, die derzeit in Ihrem Konto angemeldet sind. Widerrufen Sie solche, die Sie nicht erkennen.",
