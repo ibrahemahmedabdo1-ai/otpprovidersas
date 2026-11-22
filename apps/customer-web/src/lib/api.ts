@@ -46,6 +46,6 @@ export type Project = {
 };
 export type ApiKey = { id: string; mode: "test" | "live"; prefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type Session = { id: string; ip: string | null; userAgent: string | null; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean };
-export type Deposit = { id: string; amountUsd: string; status: string; note: string | null; createdAt: string; decidedAt: string | null };
+export type Deposit = { id: string; amountUsd: string; status: string; note: string | null; ticketId?: string | null; createdAt: string; decidedAt: string | null };
 export type Tx = { id: string; type: string; bucket: string; amountUsd: string; memo: string | null; createdAt: string };
 export type Me = { id: string; email: string; name: string; role: string; organizationId: string | null; mfaVerified: boolean; mfaPending: boolean };
