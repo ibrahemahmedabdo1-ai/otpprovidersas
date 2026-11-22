@@ -1,5 +1,5 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {useApp} from "../../../components/Providers";
 import {Alert,Loading} from "../../../components/ui";
 import {api,errorText} from "../../../lib/api";
@@ -9,7 +9,7 @@ export default function VerificationPage(){
  const {t,locale}=useApp();const [data,setData]=useState<Verification|null>(null),[useCase,setUseCase]=useState(""),[website,setWebsite]=useState(""),[err,setErr]=useState(""),[ok,setOk]=useState(""),[busy,setBusy]=useState(false);
  const load=useCallback(async()=>{const r=await api<Verification>("GET","/v1/console/verification");if(r.ok&&r.data){setData(r.data);setUseCase(r.data.useCase??"");setWebsite(r.data.website??"");setErr("");}else setErr(errorText(t,r));},[t]);
  useEffect(()=>{void load();},[load]);
- async function submit(e:React.FormEvent){e.preventDefault();setErr("");setOk("");setBusy(true);const r=await api("POST","/v1/console/verification",{body:{useCase,website:website.trim()||undefined}});setBusy(false);if(r.ok){setOk(locale==="ar"?"تم إرسال بيانات النشاط إلى الإدارة للمراجعة.":"Your business details were submitted to Admin for review.");await load();}else setErr(errorText(t,r));}
+ async function submit(e:FormEvent){e.preventDefault();setErr("");setOk("");setBusy(true);const r=await api("POST","/v1/console/verification",{body:{useCase,website:website.trim()||undefined}});setBusy(false);if(r.ok){setOk(locale==="ar"?"تم إرسال بيانات النشاط إلى الإدارة للمراجعة.":"Your business details were submitted to Admin for review.");await load();}else setErr(errorText(t,r));}
  return <><div className="pagehead"><h1>Account verification</h1><p>Live Email OTP requires administrator approval of your organization, in addition to a funded wallet and an enabled project.</p></div>
  {err&&<Alert>{err}</Alert>}{ok&&<Alert kind="ok">{ok}</Alert>}{!data?<Loading/>:<>
  <div className="card"><div className="row" style={{justifyContent:"space-between"}}><strong>Verification status</strong><span className={`chip ${data.status==="approved"?"ok":data.status==="rejected"?"bad":"warn"}`}>{data.status.replaceAll("_"," ")}</span></div>
