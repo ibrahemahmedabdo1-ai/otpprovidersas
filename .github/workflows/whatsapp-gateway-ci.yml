@@ -2,7 +2,7 @@ name: WhatsApp Gateway CI
 on:
   push:
     branches:
-      - fix/whatsapp-gateway-log-redaction
+      - fix/whatsapp-gateway-redaction-mainline
     paths:
       - "services/whatsapp-gateway/**"
       - ".github/workflows/whatsapp-gateway-ci.yml"
