@@ -440,7 +440,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(mine ? 'You' : 'OTPProvider Support', style: Theme.of(context).textTheme.labelSmall),
+                              Text(mine ? 'You' : (m['from'] == 'system' ? 'OTPProvider System' : 'OTPProvider Support'), style: Theme.of(context).textTheme.labelSmall),
                               const SizedBox(height: 4),
                               Text('${m['body'] ?? ''}'),
                               const SizedBox(height: 4),
