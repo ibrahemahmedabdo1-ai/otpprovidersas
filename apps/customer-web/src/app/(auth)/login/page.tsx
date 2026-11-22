@@ -8,7 +8,7 @@ import { Alert, Field } from "../../../components/ui";
 import { api, errorText } from "../../../lib/api";
 import { validEmail } from "../../../lib/format";
 
-type LoginOk = { mfa?: { required: boolean } };
+type LoginOk = { mfa?: { required: boolean; enrolled?: boolean } };
 
 export default function Login() {
   const { t, refresh } = useApp();
@@ -27,8 +27,9 @@ export default function Login() {
     setBusy(true);
     const r = await api<LoginOk>("POST", "/v1/auth/login", { body: { email: email.trim(), password } });
     if (r.ok && r.data?.mfa?.required) {
-      await api("POST", "/v1/auth/logout");
-      setMsg({ kind: "warn", text: t.auth.login.mfa });
+      await refresh();
+      router.replace(r.data.mfa.enrolled ? "/mfa" : "/mfa?enroll=1");
+      return;
     } else if (r.ok) {
       await refresh();
       router.replace("/");
