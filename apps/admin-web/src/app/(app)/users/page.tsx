@@ -24,6 +24,12 @@ export default function Users() {
     if (r.ok && r.data) setRows(r.data); else { setRows([]); setErr(errorText(r)); }
   }, []);
   useEffect(() => { void load(""); }, [load]);
+  async function sendReset(u: U) {
+    if (!window.confirm("Email a one-time password reset link (valid 1 hour) to " + u.email + "?")) return;
+    setErr(""); setNotice("");
+    const r = await api("POST", `/v1/auth/customers/${u.id}/password-reset`, {});
+    if (r.ok) setNotice("Reset link sent to " + u.email + "."); else setErr(errorText(r));
+  }
   async function toggle(u: U) {
     setErr("");
     const r = await api("POST", `/v1/admin/users/${u.id}/status`, { status: u.status === "active" ? "suspended" : "active" });
@@ -54,7 +60,7 @@ export default function Users() {
         <div className="tablewrap"><table>
           <thead><tr><th scope="col">Email</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Organization</th><th scope="col">Available balance</th><th scope="col">Created</th><th scope="col">Action</th></tr></thead>
           <tbody>{rows.map((u) => (
-            <tr key={u.id}><td>{u.email}</td><td>{u.name}</td><td>{ROLE_LABEL[u.role] ?? u.role}</td><td><span className={`chip ${u.status === "active" ? "ok" : u.status === "suspended" ? "bad" : "warn"}`}>{u.status}</span></td><td>{u.organization ?? ""}</td><td dir="ltr">${u.availableUsd}</td><td>{fmtDate(u.createdAt)}</td><td>{me?.role === "super_admin" && u.role === "customer" && u.status === "active" ? <button className="btn small" onClick={() => { setCreditUser(u); setCreditAmount("5.00"); setCreditBucket("promo"); setCreditReason(""); setCreditConfirmed(false); }}>Add credit</button> : null} {me?.role === "super_admin" && u.role !== "super_admin" && u.id !== me.id && (u.status === "active" || u.status === "suspended") ? <button className="btn small" onClick={() => void toggle(u)}>{u.status === "active" ? "Suspend" : "Reactivate"}</button> : ""}</td></tr>
+            <tr key={u.id}><td>{u.email}</td><td>{u.name}</td><td>{ROLE_LABEL[u.role] ?? u.role}</td><td><span className={`chip ${u.status === "active" ? "ok" : u.status === "suspended" ? "bad" : "warn"}`}>{u.status}</span></td><td>{u.organization ?? ""}</td><td dir="ltr">${u.availableUsd}</td><td>{fmtDate(u.createdAt)}</td><td>{u.role === "customer" && u.status === "active" ? <button className="btn small" onClick={() => void sendReset(u)}>Send reset link</button> : null} {me?.role === "super_admin" && u.role === "customer" && u.status === "active" ? <button className="btn small" onClick={() => { setCreditUser(u); setCreditAmount("5.00"); setCreditBucket("promo"); setCreditReason(""); setCreditConfirmed(false); }}>Add credit</button> : null} {me?.role === "super_admin" && u.role !== "super_admin" && u.id !== me.id && (u.status === "active" || u.status === "suspended") ? <button className="btn small" onClick={() => void toggle(u)}>{u.status === "active" ? "Suspend" : "Reactivate"}</button> : ""}</td></tr>
           ))}</tbody>
         </table></div>
       )}

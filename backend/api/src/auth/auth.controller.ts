@@ -13,8 +13,6 @@ export class AuthController {
   private loginIpLimit = new RateLimiter(20, 15 * 60_000);       // 20 attempts / 15 min / IP
   private loginEmailLimit = new RateLimiter(10, 15 * 60_000);    // 10 attempts / 15 min / email
   private verifyLimit = new RateLimiter(20, 15 * 60_000);
-  private forgotIpLimit = new RateLimiter(10, 60 * 60_000);    // 10 reset requests / hour / IP
-  private forgotEmailLimit = new RateLimiter(3, 60 * 60_000);   // 3 / hour / address
   constructor(private readonly auth: AuthService, private readonly mfa: MfaService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
   private limit(l: RateLimiter, key: string) {
@@ -29,14 +27,9 @@ export class AuthController {
     return { status: "accepted", message: "If this email can be registered, a verification email has been sent." };
   }
 
-  @Post("password/forgot") @HttpCode(202)
-  async forgot(@Body() body: unknown, @Req() req: Request) {
-    this.limit(this.forgotIpLimit, req.ip ?? "?");
-    const e = (body as { email?: unknown } | null)?.email;
-    if (typeof e === "string") this.limit(this.forgotEmailLimit, e.trim().toLowerCase().slice(0, 254));
-    await this.auth.forgotPassword(body, req.ip);
-    return { status: "accepted", message: "If this email belongs to an account, a reset link has been sent." };
-  }
+  /** Staff-only (Admin / Super Admin). There is no public "forgot password" endpoint. */
+  @Post("customers/:id/password-reset") @HttpCode(200) @UseGuards(AuthGuard)
+  customerReset(@Param("id") id: string, @Req() req: AuthedRequest) { return this.auth.adminSendCustomerReset(req.auth!, id, req.ip); }
 
   @Post("password/reset") @HttpCode(200)
   async reset(@Body() body: unknown, @Req() req: Request) {
