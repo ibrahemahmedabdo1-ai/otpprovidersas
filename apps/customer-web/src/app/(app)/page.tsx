@@ -48,7 +48,7 @@ export default function Dashboard() {
         <p>{t.dashboard.sub}</p>
       </div>
       {err && <Alert>{err}</Alert>}
-      {accountStatus && (!accountStatus.emailAccountApproved || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />Email live: {accountStatus.emailAccountApproved ? "Account approved; wallet and project checks still apply" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
+      {accountStatus && (!accountStatus.emailAccountApproved || !accountStatus.whatsappLiveEligible) && <Alert kind="warn"><strong>Service activation status / حالة تفعيل الخدمات</strong><br />{accountStatus.message}<br />{!accountStatus.emailAccountApproved&&<Link href="/verification">Complete organization verification / استكمال التحقق</Link>}<br />Email live: {accountStatus.emailAccountApproved ? "Account approved; wallet and project checks still apply" : "Waiting for account approval"} · WhatsApp live: {accountStatus.whatsappLiveEligible ? "Available" : "Not yet enabled"}</Alert>}
 
       <h2>{t.dashboard.walletTitle}</h2>
       {!wallet ? <Loading /> : (
