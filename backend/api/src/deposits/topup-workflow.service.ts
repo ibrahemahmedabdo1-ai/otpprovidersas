@@ -42,16 +42,50 @@ export class TopupWorkflowService {
   }
   async accountStatus(ctx: AuthContext) {
     const orgId=this.customerOrg(ctx);
-    const r=await this.db.pool.query(`SELECT o.status,cv.status AS verification_status
+    const r=await this.db.pool.query(`SELECT o.status,cv.status AS verification_status,cv.use_case,cv.website,cv.note AS verification_note
       FROM organizations o LEFT JOIN LATERAL (SELECT status FROM customer_verifications WHERE organization_id=o.id ORDER BY created_at DESC LIMIT 1) cv ON true
       WHERE o.id=$1::uuid`,[orgId]);
     if(!r.rows[0]) throw new ConflictException({error:"organization_not_found"});
     const organizationActive=r.rows[0].status==="active";
     const verified=r.rows[0].verification_status==="approved";
-    return {organizationStatus:r.rows[0].status as string,verificationStatus:(r.rows[0].verification_status as string|null)??"not_submitted",
+    return {organizationStatus:r.rows[0].status as string,verificationStatus:(r.rows[0].verification_status as string|null)??"not_submitted",verificationUseCase:r.rows[0].use_case as string|null,verificationWebsite:r.rows[0].website as string|null,verificationNote:r.rows[0].verification_note as string|null,
       emailAccountApproved:organizationActive&&verified,whatsappLiveEligible:false,
       message:!organizationActive?"حساب المؤسسة غير نشط. تواصل مع الدعم. Your organization is not active. Contact Support.":!verified?"تم تأكيد البريد، لكن تفعيل إرسال OTP المباشر ينتظر مراجعة الإدارة. تواصل مع الدعم. Your email is verified, but live OTP sending is waiting for administrator account review.":"تم اعتماد حساب المؤسسة. يظل Email OTP مشروطًا برصيد كافٍ ومفتاح API ومزود جاهز. WhatsApp live remains disabled until delivery receipts are verified."};
   }
+  async getVerification(ctx:AuthContext){
+    const orgId=this.customerOrg(ctx);
+    const r=await this.db.pool.query("SELECT status,use_case,website,note,created_at,reviewed_at FROM customer_verifications WHERE organization_id=$1::uuid ORDER BY created_at DESC LIMIT 1",[orgId]);
+    const v=r.rows[0];
+    return v?{status:v.status as string,useCase:v.use_case as string|null,website:v.website as string|null,note:v.note as string|null,createdAt:v.created_at,reviewedAt:v.reviewed_at}:{status:"not_submitted",useCase:null,website:null,note:null,createdAt:null,reviewedAt:null};
+  }
+
+  async submitVerification(ctx:AuthContext,body:unknown,ip?:string){
+    const orgId=this.customerOrg(ctx),b=(body??{}) as {useCase?:unknown;website?:unknown};
+    if(typeof b.useCase!=="string"||b.useCase.trim().length<20||b.useCase.length>1000)throw new BadRequestException({error:"validation_failed",fields:{useCase:"Describe your business and intended OTP use in 20-1000 characters."}});
+    const useCase=b.useCase.trim();
+    let website:string|null=null;
+    if(b.website!==undefined&&b.website!==null&&String(b.website).trim()){
+      if(typeof b.website!=="string"||b.website.length>200)throw new BadRequestException({error:"validation_failed",fields:{website:"Enter a valid HTTPS website."}});
+      try{const u=new URL(b.website.trim());if(u.protocol!=="https:"||!u.hostname.includes("."))throw new Error("invalid");website=u.toString();}catch{throw new BadRequestException({error:"validation_failed",fields:{website:"Enter a valid HTTPS website."}});}
+    }
+    return this.db.tx(async c=>{
+      const latest=await c.query("SELECT id,status FROM customer_verifications WHERE organization_id=$1::uuid ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[orgId]);
+      if(latest.rows[0]?.status==="approved")throw new ConflictException({error:"already_approved"});
+      let id:string;
+      if(latest.rows[0]&&["pending","needs_info"].includes(latest.rows[0].status)){
+        id=latest.rows[0].id as string;
+        await c.query("UPDATE customer_verifications SET status='pending',use_case=$2,website=$3,note=NULL,reviewed_by=NULL,reviewed_at=NULL,created_at=now() WHERE id=$1::uuid",[id,useCase,website]);
+      }else{
+        const ins=await c.query("INSERT INTO customer_verifications(organization_id,status,use_case,website) VALUES($1::uuid,'pending',$2,$3) RETURNING id",[orgId,useCase,website]);
+        id=ins.rows[0].id as string;
+      }
+      await c.query("INSERT INTO notifications(user_id,kind,title,body) SELECT id,'customer_verification_submitted','Customer verification submitted',$2::text FROM users WHERE role IN ('admin_staff','super_admin') AND status='active'",
+        ["A customer submitted organization verification "+id+" for review."]);
+      await writeAudit(c,{actorId:ctx.userId,action:"customer.verification_submitted",subjectType:"organization",subjectId:orgId,ip:cleanIp(ip),meta:{verificationId:id,website}});
+      return {id,status:"pending"};
+    });
+  }
+
   async supportList(ctx: AuthContext) {
     if(!["support_staff","admin_staff","super_admin"].includes(ctx.role)) throw new ForbiddenException({error:"forbidden"});
     const r=await this.db.pool.query(`SELECT d.id,d.amount_micro_usd,d.status,d.method_note,d.support_evidence_note,d.created_at,d.ticket_id,o.name AS organization,u.email AS customer_email
