@@ -49,8 +49,8 @@ export class TopupWorkflowService {
     const organizationActive=r.rows[0].status==="active";
     const verified=r.rows[0].verification_status==="approved";
     return {organizationStatus:r.rows[0].status as string,verificationStatus:(r.rows[0].verification_status as string|null)??"not_submitted",
-      emailLiveEligible:organizationActive&&verified,whatsappLiveEligible:false,
-      message:!organizationActive?"Your organization is not active. Contact Support.":!verified?"Your email is verified, but live OTP sending is waiting for administrator account review. Contact Support if you need help.":"Your account is approved for eligible live email OTP. WhatsApp live delivery remains unavailable until delivery receipts are verified."};
+      emailAccountApproved:organizationActive&&verified,whatsappLiveEligible:false,
+      message:!organizationActive?"حساب المؤسسة غير نشط. تواصل مع الدعم. Your organization is not active. Contact Support.":!verified?"تم تأكيد البريد، لكن تفعيل إرسال OTP المباشر ينتظر مراجعة الإدارة. تواصل مع الدعم. Your email is verified, but live OTP sending is waiting for administrator account review.":"تم اعتماد حساب المؤسسة. يظل Email OTP مشروطًا برصيد كافٍ ومفتاح API ومزود جاهز. WhatsApp live remains disabled until delivery receipts are verified."};
   }
   async supportList(ctx: AuthContext) {
     if(!["support_staff","admin_staff","super_admin"].includes(ctx.role)) throw new ForbiddenException({error:"forbidden"});
