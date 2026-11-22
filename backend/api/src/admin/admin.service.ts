@@ -113,7 +113,8 @@ export class AdminService {
        WHERE ($1::text IS NULL OR d.status = $1::text) ORDER BY d.created_at DESC LIMIT 100`, [status]);
     return r.rows.map((d) => ({
       id: d.id as string, amountUsd: microToUsd(BigInt(d.amount_micro_usd)), note: d.method_note as string | null, status: d.status as string,
-      receiptVerified: d.receipt_verified as boolean, receiptNote: d.receipt_verification_note as string | null,\n      supportEvidenceNote: d.support_evidence_note as string | null, ticketId: d.ticket_id as string | null,
+      receiptVerified: d.receipt_verified as boolean, receiptNote: d.receipt_verification_note as string | null,
+      supportEvidenceNote: d.support_evidence_note as string | null, ticketId: d.ticket_id as string | null,
       organization: { id: d.organization_id as string, name: d.organization_name as string },
       approvalStatus: (d.approval_status as string | null) ?? null, createdAt: d.created_at, decidedAt: d.decided_at,
     }));
