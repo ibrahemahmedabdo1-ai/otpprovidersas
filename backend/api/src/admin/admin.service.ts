@@ -106,7 +106,7 @@ export class AdminService {
     this.requireMoneyStaff(ctx);
     const status = typeof statusRaw === "string" && ["requested", "under_review", "approved", "rejected"].includes(statusRaw) ? statusRaw : null;
     const r = await this.db.pool.query(
-      `SELECT d.id, d.amount_micro_usd, d.method_note, d.status, d.receipt_verified, d.receipt_verification_note, d.created_at, d.decided_at,
+      `SELECT d.id, d.amount_micro_usd, d.method_note, d.status, d.receipt_verified, d.receipt_verification_note, d.support_evidence_note, d.ticket_id, d.created_at, d.decided_at,
               o.id AS organization_id, o.name AS organization_name,
               (SELECT a.status FROM approvals a WHERE a.action = 'wallet.deposit.approve' AND a.subject_id = d.id::text ORDER BY a.created_at DESC LIMIT 1) AS approval_status
        FROM deposits d JOIN wallets w ON w.id = d.wallet_id JOIN organizations o ON o.id = w.organization_id
@@ -114,6 +114,7 @@ export class AdminService {
     return r.rows.map((d) => ({
       id: d.id as string, amountUsd: microToUsd(BigInt(d.amount_micro_usd)), note: d.method_note as string | null, status: d.status as string,
       receiptVerified: d.receipt_verified as boolean, receiptNote: d.receipt_verification_note as string | null,
+      supportEvidenceNote: d.support_evidence_note as string | null, ticketId: d.ticket_id as string | null,
       organization: { id: d.organization_id as string, name: d.organization_name as string },
       approvalStatus: (d.approval_status as string | null) ?? null, createdAt: d.created_at, decidedAt: d.decided_at,
     }));

@@ -73,8 +73,8 @@ export class WalletService {
 
   async deposits(ctx: AuthContext) {
     const w = (await this.wallet(this.org(ctx))) as unknown as { id: string };
-    const r = await this.db.pool.query("SELECT id, amount_micro_usd, status, method_note, created_at, decided_at FROM deposits WHERE wallet_id = $1 ORDER BY created_at DESC LIMIT 50", [w.id]);
-    return r.rows.map((d) => ({ id: d.id as string, amountUsd: microToUsd(d.amount_micro_usd), status: d.status as string, note: d.method_note as string | null, createdAt: d.created_at, decidedAt: d.decided_at }));
+    const r = await this.db.pool.query("SELECT id, amount_micro_usd, status, method_note, ticket_id, created_at, decided_at FROM deposits WHERE wallet_id = $1 ORDER BY created_at DESC LIMIT 50", [w.id]);
+    return r.rows.map((d) => ({ id: d.id as string, amountUsd: microToUsd(d.amount_micro_usd), status: d.status as string, note: d.method_note as string | null, ticketId: d.ticket_id as string | null, createdAt: d.created_at, decidedAt: d.decided_at }));
   }
 
   /** Developer API: OTP request counts per day, channel and mode for the key's project (last 30 days). */

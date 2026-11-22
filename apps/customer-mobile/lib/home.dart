@@ -15,6 +15,8 @@ class _RegisterState extends State<RegisterScreen> {
   final pass = TextEditingController();
   bool busy = false;
   bool done = false;
+  bool resendBusy = false;
+  String resendMessage = '';
   String err = '';
 
   Future<void> submit() async {
@@ -29,7 +31,16 @@ class _RegisterState extends State<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Create your account')),
       body: ListView(padding: const EdgeInsets.all(24), children: [
-        if (done) const Banner2('If this address can be registered, we sent a verification link valid for 24 hours. Verify your email, then sign in.', ok: true) else ...[
+        if (done) ...[
+          const Banner2('If this address can be registered, we sent a verification link valid for 24 hours. Verify your email, then sign in.', ok: true),
+          if (resendMessage.isNotEmpty) Banner2(resendMessage, ok: true),
+          FilledButton(onPressed: resendBusy ? null : () async {
+            setState(() { resendBusy = true; resendMessage = ''; });
+            final r = await Api.post('/v1/auth/resend-verification', {'email': email.text.trim()});
+            if (!mounted) return;
+            setState(() { resendBusy = false; resendMessage = r.ok ? 'If the account needs verification, a new email will be sent shortly.' : errorText(r); });
+          }, child: Text(resendBusy ? 'Sending…' : 'Resend verification email')),
+        ] else ...[
           const Text('No payment details are requested here. Password: at least 12 characters.'),
           const SizedBox(height: 12),
           if (err.isNotEmpty) Banner2(err),
@@ -62,7 +73,7 @@ class _HomeState extends State<Home> {
     return Scaffold(
       appBar: AppBar(title: const Text('OTPProvider')),
       body: Column(children: [
-        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('OTP sending is sandbox-only. Support conversations are delivered to our support team. Sandbox OTP requests do not send messages or charge your wallet.', style: TextStyle(fontSize: 12))),
+        Container(width: double.infinity, color: Theme.of(context).colorScheme.secondaryContainer, padding: const EdgeInsets.all(8), child: const Text('Live Email OTP requires an approved organization, funded wallet and enabled project. WhatsApp OTP is not yet available until delivery receipts and billing reconciliation are verified. Sandbox requests do not send messages or charge your wallet.', style: TextStyle(fontSize: 12))),
         Expanded(child: pages[tab]),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: const [
@@ -88,6 +99,7 @@ class _WalletState extends State<WalletTab> {
   String ok = '';
   final amount = TextEditingController();
   bool busy = false;
+  String? supportTicketId;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -105,7 +117,7 @@ class _WalletState extends State<WalletTab> {
     setState(() { busy = true; err = ''; ok = ''; });
     final r = await Api.post('/v1/console/wallet/deposits', {'amountUsd': v});
     if (!mounted) return;
-    setState(() { busy = false; if (r.ok) { ok = 'Top-up request recorded. Your balance has not changed. Contact Support for payment instructions; it is credited only after an administrator verifies the funds.'; amount.clear(); } else { err = errorText(r); } });
+    setState(() { busy = false; if (r.ok) { ok = 'Top-up request recorded. Your balance has not changed. Continue in the linked Support conversation; credit is added only after Admin approval.'; supportTicketId = r.map['ticketId'] as String?; amount.clear(); } else { err = errorText(r); } });
     if (r.ok) await _load();
   }
 
@@ -117,7 +129,7 @@ class _WalletState extends State<WalletTab> {
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), children: [
         if (err.isNotEmpty) Banner2(err),
-        if (ok.isNotEmpty) Banner2(ok, ok: true),
+        if (ok.isNotEmpty) ...[Banner2(ok, ok: true), if(supportTicketId!=null) FilledButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SupportThreadPage(ticketId:supportTicketId!))),child:const Text('Open Support conversation'))],
         if (w == null && err.isEmpty) const LinearProgressIndicator(),
         if (w != null) ...[
           Text('Available', style: Theme.of(context).textTheme.labelLarge),
@@ -137,7 +149,7 @@ class _WalletState extends State<WalletTab> {
         const Divider(height: 32),
         Text('Top-up requests', style: Theme.of(context).textTheme.titleMedium),
         if (deps.isEmpty) const Text('No top-up requests yet.'),
-        for (final d in deps) ListTile(dense: true, title: Text(usd((d as Map<String, dynamic>)['amountUsd'])), subtitle: Text('${d['status']}'.replaceAll('_', ' '))),
+        for (final d in deps) ListTile(dense: true, title: Text(usd((d as Map<String, dynamic>)['amountUsd'])), subtitle: Text('${d['status']}'.replaceAll('_', ' ')), trailing: d['ticketId'] is String ? IconButton(icon:const Icon(Icons.chat_outlined),onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SupportThreadPage(ticketId:'${d['ticketId']}')))) : null),
         const Divider(height: 32),
         const TransactionsList(),
       ]),
@@ -192,21 +204,68 @@ class _ProjectsState extends State<ProjectsTab> {
   }
 }
 
-class AccountTab extends StatelessWidget {
+class AccountTab extends StatefulWidget {
   final Map<String, dynamic> me;
   final Future<void> Function() signOut;
   const AccountTab({super.key, required this.me, required this.signOut});
   @override
+  State<AccountTab> createState() => _AccountTabState();
+}
+
+class _AccountTabState extends State<AccountTab> {
+  Map<String,dynamic>? status;
+  Map<String,dynamic>? verification;
+  final useCase=TextEditingController();
+  final website=TextEditingController();
+  String err='';
+  String ok='';
+  bool busy=false;
+  @override
+  void initState(){super.initState();_load();}
+  @override
+  void dispose(){useCase.dispose();website.dispose();super.dispose();}
+  Future<void> _load() async {
+    final a=await Api.get('/v1/console/status');
+    final b=await Api.get('/v1/console/verification');
+    if(!mounted)return;
+    setState((){if(a.ok)status=a.map;if(b.ok){verification=b.map;useCase.text='${b.map['useCase']??''}';website.text='${b.map['website']??''}';}});
+  }
+  Future<void> _submit() async {
+    if(useCase.text.trim().length<20){setState(()=>err='Describe your business and intended OTP use in at least 20 characters.');return;}
+    setState(() { busy=true; err=''; ok=''; });
+    final r=await Api.post('/v1/console/verification',{'useCase':useCase.text.trim(),'website':website.text.trim().isEmpty?null:website.text.trim()});
+    if(!mounted)return;
+    setState(()=>busy=false);
+    if(r.ok){setState(()=>ok='Submitted for administrator review.');await _load();}else setState(()=>err=errorText(r));
+  }
+  @override
   Widget build(BuildContext context) {
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      ListTile(title: const Text('Email'), subtitle: Text('${me['email']}')),
-      ListTile(title: const Text('Name'), subtitle: Text('${me['name']}')),
-      const SizedBox(height: 16),
-      FilledButton(onPressed: signOut, child: const Text('Sign out')),
+    final approved=verification?['status']=='approved';
+    return ListView(padding:const EdgeInsets.all(16),children:[
+      ListTile(title:const Text('Email'),subtitle:Text('${widget.me['email']}')),
+      ListTile(title:const Text('Name'),subtitle:Text('${widget.me['name']}')),
+      const Divider(height:32),
+      Text('Account activation',style:Theme.of(context).textTheme.titleMedium),
+      if(status!=null) Banner2('${status!['message']??''}',ok:status!['emailAccountApproved']==true),
+      if(verification==null) const LinearProgressIndicator(),
+      if(verification!=null) ...[
+        ListTile(title:const Text('Organization verification'),subtitle:Text('${verification!['status']??'not_submitted'}'.replaceAll('_',' '))),
+        if(verification!['note']!=null) Banner2('${verification!['note']}'),
+        if(!approved) ...[
+          TextField(controller:useCase,minLines:3,maxLines:5,maxLength:1000,decoration:const InputDecoration(labelText:'Business and intended OTP use (20–1000 characters)',border:OutlineInputBorder())),
+          const SizedBox(height:8),
+          TextField(controller:website,keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'Business website (optional HTTPS)',border:OutlineInputBorder())),
+          const SizedBox(height:8),
+          FilledButton(onPressed:busy?null:_submit,child:Text(busy?'Submitting…':'Submit for admin review')),
+        ],
+      ],
+      if(err.isNotEmpty) Banner2(err),
+      if(ok.isNotEmpty) Banner2(ok,ok:true),
+      const SizedBox(height:16),
+      FilledButton(onPressed:widget.signOut,child:const Text('Sign out')),
     ]);
   }
 }
-
 
 class SupportTab extends StatefulWidget {
   const SupportTab({super.key});
@@ -381,7 +440,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(mine ? 'You' : 'OTPProvider Support', style: Theme.of(context).textTheme.labelSmall),
+                              Text(mine ? 'You' : (m['from'] == 'system' ? 'OTPProvider System' : 'OTPProvider Support'), style: Theme.of(context).textTheme.labelSmall),
                               const SizedBox(height: 4),
                               Text('${m['body'] ?? ''}'),
                               const SizedBox(height: 4),

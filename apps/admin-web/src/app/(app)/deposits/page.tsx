@@ -4,7 +4,7 @@ import { useApp } from "../../../components/Providers";
 import { Alert, Empty, Loading } from "../../../components/ui";
 import { api, errorText, fmtDate } from "../../../lib/api";
 
-type Dep = { id: string; amountUsd: string; note: string | null; status: string; receiptVerified: boolean; receiptNote: string | null; organization: { id: string; name: string }; approvalStatus: string | null; createdAt: string; decidedAt: string | null };
+type Dep = { id: string; amountUsd: string; note: string | null; status: string; receiptVerified: boolean; receiptNote: string | null; organization: { id: string; name: string }; approvalStatus: string | null; supportEvidenceNote: string | null; ticketId: string | null; createdAt: string; decidedAt: string | null };
 const STATUSES = ["", "requested", "under_review", "approved", "rejected"] as const;
 const LABEL: Record<string, string> = { "": "All", requested: "Requested", under_review: "Under review", approved: "Approved", rejected: "Rejected" };
 
@@ -57,14 +57,14 @@ export default function Deposits() {
       {okMsg && <Alert kind="ok">{okMsg}</Alert>}
       {rows === null ? <Loading /> : rows.length === 0 ? <Empty title="No deposits" body="Nothing matches this filter." /> : (
         <div className="tablewrap"><table>
-          <thead><tr><th scope="col">Organization</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Approval</th><th scope="col">Requested</th><th scope="col">Customer note</th><th scope="col">Actions</th></tr></thead>
+          <thead><tr><th scope="col">Organization</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Approval</th><th scope="col">Requested</th><th scope="col">Customer note</th><th scope="col">Support evidence review</th><th scope="col">Linked ticket</th><th scope="col">Actions</th></tr></thead>
           <tbody>{rows.map((d) => {
             const openRow = d.status === "requested" || d.status === "under_review";
             return (
               <tr key={d.id}>
                 <td>{d.organization.name}</td><td dir="ltr">${d.amountUsd.replace(/(\.\d\d)\d*$/, "$1")}</td>
                 <td><span className={`chip ${d.status === "approved" ? "ok" : d.status === "rejected" ? "bad" : "warn"}`}>{LABEL[d.status] ?? d.status}</span></td>
-                <td>{d.approvalStatus ?? ""}</td><td>{fmtDate(d.createdAt)}</td><td>{d.note ?? ""}</td>
+                <td>{d.approvalStatus ?? ""}</td><td>{fmtDate(d.createdAt)}</td><td>{d.note ?? ""}</td><td>{d.supportEvidenceNote ?? "Not submitted by Support yet"}</td><td>{d.ticketId ?? "—"}</td>
                 <td>{openRow ? (
                   <span className="row">
                     {isAdminOnly && d.approvalStatus !== "approved" && d.approvalStatus !== "pending" && <button className="btn ghost small" onClick={() => void requestApproval(d.id)}>Request approval</button>}

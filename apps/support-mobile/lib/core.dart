@@ -54,6 +54,10 @@ class Api {
 const _messages = <String, String>{
   'invalid_credentials': 'The email or password is incorrect.',
   'email_not_verified': 'Verify your email first, using the link we sent you.',
+  'customer_verification_required': 'Submit your organization use case for administrator review before live OTP sending.',
+  'channel_not_live': 'This OTP channel is not currently enabled for live delivery.',
+  'already_approved': 'Your organization is already approved.',
+  'deposit_not_open_or_not_found': 'This top-up request is no longer open.',
   'account_disabled': 'This account is disabled.',
   'rate_limited': 'Too many attempts. Wait a few minutes and try again.',
   'locked': 'Too many failed attempts. Wait about 15 minutes.',

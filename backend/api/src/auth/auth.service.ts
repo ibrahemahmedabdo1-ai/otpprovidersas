@@ -69,6 +69,28 @@ export class AuthService {
   }
 
 
+  /** Resend email verification without revealing whether an address has an account. */
+  async resendVerification(body: unknown, ip: string | undefined): Promise<void> {
+    const email = parseEmail((body as { email?: unknown } | null)?.email);
+    if (!email.ok) return;
+    const user = await this.db.pool.query("SELECT id FROM users WHERE email=$1 AND role='customer' AND status='pending' AND email_verified_at IS NULL", [email.value]);
+    const userId: string | undefined = user.rows[0]?.id;
+    if (!userId) return;
+    const tok = newToken();
+    const created = await this.db.tx(async (c) => {
+      const recent = await c.query("SELECT id FROM email_tokens WHERE user_id=$1 AND purpose='verify_email' AND used_at IS NULL AND created_at>now()-interval '2 minutes'", [userId]);
+      if (recent.rows[0]) return false;
+      await c.query("UPDATE email_tokens SET used_at=now() WHERE user_id=$1 AND purpose='verify_email' AND used_at IS NULL", [userId]);
+      await c.query("INSERT INTO email_tokens(user_id,purpose,token_hash,expires_at) VALUES ($1,'verify_email',$2,now()+interval '24 hours')", [userId,tok.hash]);
+      await this.audit(c,"auth.verification_resent",userId,cleanIp(ip));
+      return true;
+    });
+    if (created) {
+      try { await this.mailer.sendVerification(email.value, `${this.cfg.appBaseUrl}/verify-email?token=${tok.token}`); }
+      catch (e) { this.log.error(`verification resend failed: ${e instanceof Error ? e.message : "unknown"}`); }
+    }
+  }
+
   /** Always answers the same way. Only active customer accounts get a link: staff passwords are never reset by e-mail. */
   async forgotPassword(body: unknown, ip: string | undefined): Promise<void> {
     const email = parseEmail((body as { email?: unknown } | null)?.email);

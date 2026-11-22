@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useApp } from "../../../components/Providers";
 import { Alert, Empty, Field, Loading, Money } from "../../../components/ui";
 import { api, errorText, type Deposit, type Tx, type Wallet } from "../../../lib/api";
@@ -19,6 +20,7 @@ export default function WalletPage() {
   const [amountErr, setAmountErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [okMsg, setOkMsg] = useState("");
+  const [supportTicketId, setSupportTicketId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     const [a, b, c] = await Promise.all([
@@ -45,10 +47,11 @@ export default function WalletPage() {
     const a = amount.trim();
     if (!validAmount(a)) { setAmountErr(t.errors.amountFormat); return; }
     setBusy(true);
-    const r = await api<{ amountUsd: string }>("POST", "/v1/console/wallet/deposits", { body: { amountUsd: a, note: note.trim() || undefined } });
+    const r = await api<{ amountUsd: string; ticketId: string }>("POST", "/v1/console/topups", { body: { amountUsd: a, note: note.trim() || undefined } });
     setBusy(false);
     if (r.ok && r.data) {
       setOkMsg(fmt(t.wallet.requested, { amount: fmtUsd(r.data.amountUsd, locale) }));
+      setSupportTicketId(r.data.ticketId);
       setAmount(""); setNote(""); await loadAll();
     } else if (r.status === 400) setAmountErr(t.errors.amountRange);
     else setErr(errorText(t, r));
@@ -75,7 +78,7 @@ export default function WalletPage() {
       <form className="card" onSubmit={request} noValidate>
         <h2>{t.wallet.topupTitle}</h2>
         <Alert kind="info">{t.wallet.honest}</Alert>
-        {okMsg && <Alert kind="ok">{okMsg}</Alert>}
+        {okMsg && <Alert kind="ok">{okMsg}{supportTicketId && <> <Link href={`/tickets/${supportTicketId}`}>Open your Support conversation / افتح محادثة الدعم</Link></>}</Alert>}
         <Field label={t.wallet.amountLabel} hint={t.wallet.amountHint} error={amountErr}>
           {(p) => <input {...p} inputMode="decimal" autoComplete="off" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} />}
         </Field>
@@ -88,12 +91,12 @@ export default function WalletPage() {
       <h2>{t.wallet.depositsTitle}</h2>
       {deps === null ? <Loading /> : deps.length === 0 ? <Empty title={t.wallet.depositsEmpty} /> : (
         <div className="tablewrap"><table>
-          <thead><tr><th scope="col">{t.wallet.colAmount}</th><th scope="col">{t.wallet.colStatus}</th><th scope="col">{t.wallet.colRequested}</th><th scope="col">{t.wallet.colDecided}</th><th scope="col">{t.wallet.colNote}</th></tr></thead>
+          <thead><tr><th scope="col">{t.wallet.colAmount}</th><th scope="col">{t.wallet.colStatus}</th><th scope="col">{t.wallet.colRequested}</th><th scope="col">{t.wallet.colDecided}</th><th scope="col">{t.wallet.colNote}</th><th scope="col">Support</th></tr></thead>
           <tbody>{deps.map((d) => (
             <tr key={d.id}>
               <td dir="ltr">{fmtUsd(d.amountUsd, locale)}</td>
               <td><span className={`chip ${d.status === "approved" ? "ok" : d.status === "rejected" ? "bad" : "warn"}`}>{statusLabel(d.status)}</span></td>
-              <td>{fmtDate(d.createdAt, locale)}</td><td>{d.decidedAt ? fmtDate(d.decidedAt, locale) : ""}</td><td>{d.note ?? ""}</td>
+              <td>{fmtDate(d.createdAt, locale)}</td><td>{d.decidedAt ? fmtDate(d.decidedAt, locale) : ""}</td><td>{d.note ?? ""}</td><td>{d.ticketId ? <Link href={`/tickets/${d.ticketId}`}>Open conversation</Link> : "—"}</td>
             </tr>
           ))}</tbody>
         </table></div>

@@ -16,6 +16,8 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [resending,setResending]=useState(false);
+  const [resendMsg,setResendMsg]=useState("");
   const [msg, setMsg] = useState("");
   const [fe, setFe] = useState<Fields>({});
 
@@ -42,7 +44,9 @@ export default function Register() {
     return (
       <AuthFrame title={t.auth.register.doneTitle}>
         <Alert kind="ok">{t.auth.register.doneBody}</Alert>
-        <Link className="btn" href="/login">{t.auth.register.toLogin}</Link>
+        {resendMsg&&<Alert>{resendMsg}</Alert>}
+        <button className="btn ghost" disabled={resending} onClick={async()=>{setResending(true);setResendMsg("");const r=await api("POST","/v1/auth/resend-verification",{body:{email:email.trim()}});setResending(false);setResendMsg(r.ok?(locale==="ar"?"إذا كان الحساب يحتاج إلى التحقق فسيتم إرسال رسالة جديدة قريبًا.":"If the account needs verification, a new email will be sent shortly."):(locale==="ar"?"تعذر طلب رسالة جديدة الآن. حاول لاحقًا.":"Could not request another email right now. Try again later."));}}>{resending?(locale==="ar"?"جارٍ الإرسال…":"Sending…"):(locale==="ar"?"إعادة إرسال رسالة التحقق":"Resend verification email")}</button>
+        <p><Link className="btn" href="/login">{t.auth.register.toLogin}</Link></p>
       </AuthFrame>
     );
   }

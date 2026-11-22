@@ -4,7 +4,7 @@ import { Alert, Empty, Loading } from "../../../components/ui";
 import { useApp } from "../../../components/Providers";
 import { api, errorText, fmtDate } from "../../../lib/api";
 
-type O = { id: string; name: string; country: string; status: string; riskLevel: string; owner: string; verification: string; createdAt: string };
+type O = { id: string; name: string; country: string; status: string; riskLevel: string; owner: string; verification: string; verificationUseCase:string|null; verificationWebsite:string|null; verificationNote:string|null; createdAt: string };
 const RISK = ["low", "normal", "elevated", "high"];
 
 export default function Organizations() {
@@ -23,9 +23,9 @@ export default function Organizations() {
     if (!r.ok) setErr(errorText(r));
     await load();
   }
-  async function verify(id: string, status: "approved" | "rejected") {
+  async function verify(id: string, status: "approved" | "rejected" | "needs_info", note?:string) {
     setErr("");
-    const r = await api("POST", `/v1/admin/organizations/${id}/verification`, { status });
+    const r = await api("POST", `/v1/admin/organizations/${id}/verification`, { status, note });
     if (!r.ok) setErr(errorText(r));
     await load();
   }
@@ -35,15 +35,15 @@ export default function Organizations() {
       {err && <Alert>{err}</Alert>}
       {rows === null ? <Loading /> : rows.length === 0 ? <Empty title="No organizations yet" /> : (
         <div className="tablewrap"><table>
-          <thead><tr><th scope="col">Name</th><th scope="col">Owner</th><th scope="col">Country</th><th scope="col">Risk</th><th scope="col">Verification</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Owner</th><th scope="col">Country</th><th scope="col">Risk</th><th scope="col">Verification</th><th scope="col">Submitted details</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
           <tbody>{rows.map((o) => (
             <tr key={o.id}><td>{o.name}</td><td>{o.owner}</td><td>{o.country}</td>
               <td>{isSuper ? <select aria-label={`Risk level for ${o.name}`} value={o.riskLevel} onChange={(e) => void update(o.id, { riskLevel: e.target.value })}>{RISK.map((r) => <option key={r}>{r}</option>)}</select> : o.riskLevel}</td>
               <td><span className={`chip ${o.verification === "approved" ? "ok" : o.verification === "rejected" ? "bad" : "warn"}`}>{o.verification}</span></td>
+              <td>{o.verificationUseCase??"No use case submitted"}{o.verificationWebsite&&<div><a href={o.verificationWebsite} target="_blank" rel="noreferrer">{o.verificationWebsite}</a></div>}{o.verificationNote&&<div className="muted">Review note: {o.verificationNote}</div>}</td>
               <td><span className={`chip ${o.status === "active" ? "ok" : "bad"}`}>{o.status}</span></td><td>{fmtDate(o.createdAt)}</td>
               <td>{isSuper ? <>
-                {o.verification !== "approved" && <><button className="btn small" onClick={() => void verify(o.id, "approved")}>Verify</button>{" "}</>}
-                {o.verification === "approved" && <><button className="btn small" onClick={() => void verify(o.id, "rejected")}>Revoke verification</button>{" "}</>}
+                {o.verification !== "approved" && <><button className="btn small" onClick={() => void verify(o.id, "approved")}>Approve</button>{" "}</>}{o.verification !== "approved" && <><button className="btn ghost small" onClick={() => {const n=window.prompt("What additional information is required?");if(n&&n.trim().length>=5)void verify(o.id,"needs_info",n.trim());}}>Request info</button>{" "}</>}{o.verification !== "rejected" && <><button className="btn danger small" onClick={() => {const n=window.prompt("Reason for rejection?");if(n&&n.trim())void verify(o.id,"rejected",n.trim());}}>Reject</button>{" "}</>}
                 <button className="btn small" onClick={() => { const n = window.prompt("New organization name", o.name); if (n && n.trim() !== o.name) void update(o.id, { name: n.trim() }); }}>Rename</button>{" "}
                 <button className="btn small" onClick={() => void update(o.id, { status: o.status === "active" ? "suspended" : "active" })}>{o.status === "active" ? "Suspend" : "Reactivate"}</button></> : <span className="muted">Super Admin only</span>}</td></tr>
           ))}</tbody>

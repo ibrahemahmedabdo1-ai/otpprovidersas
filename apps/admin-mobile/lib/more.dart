@@ -84,8 +84,13 @@ class OrgsTab extends StatelessWidget {
     item: (ctx, o, reload) => Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('${o['name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
       Text('${o['owner']}  -  ${o['country']}  -  ${o['status']}  -  risk ${o['riskLevel']}  -  verification ${o['verification']}'),
+      if (o['verificationUseCase'] != null) Text('Business use: ${o['verificationUseCase']}'),
+      if (o['verificationWebsite'] != null) Text('Website: ${o['verificationWebsite']}'),
+      if (o['verificationNote'] != null) Text('Review note: ${o['verificationNote']}'),
       if (isSuper) Wrap(spacing: 8, children: [
-        TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/verification', {'status': o['verification'] == 'approved' ? 'rejected' : 'approved'}, reload), child: Text(o['verification'] == 'approved' ? 'Revoke verification' : 'Verify')),
+        if (o['verification'] != 'approved') TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/verification', {'status':'approved'}, reload), child: const Text('Approve')),
+        if (o['verification'] != 'approved') TextButton(onPressed: () async { final n=await _ask(ctx,'Request more information','What information is required?'); if(n!=null&&n.trim().length>=5&&ctx.mounted) await _post(ctx,'/v1/admin/organizations/${o['id']}/verification',{'status':'needs_info','note':n.trim()},reload); }, child: const Text('Request info')),
+        if (o['verification'] != 'rejected') TextButton(onPressed: () async { final n=await _ask(ctx,'Reject verification','Reason'); if(n!=null&&n.trim().length>=5&&ctx.mounted) await _post(ctx,'/v1/admin/organizations/${o['id']}/verification',{'status':'rejected','note':n.trim()},reload); }, child: const Text('Reject')),
         TextButton(onPressed: () async { final n = await _ask(ctx, 'Rename organization', '${o['name']}'); if (n != null && n.trim().length >= 2 && ctx.mounted) await _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'name': n.trim()}, reload); }, child: const Text('Rename')),
         TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'status': o['status'] == 'active' ? 'suspended' : 'active'}, reload), child: Text(o['status'] == 'active' ? 'Suspend' : 'Reactivate')),
         for (final r in const ['low', 'normal', 'elevated', 'high']) if (r != o['riskLevel']) TextButton(onPressed: () => _post(ctx, '/v1/admin/organizations/${o['id']}/update', {'riskLevel': r}, reload), child: Text('Risk: $r')),

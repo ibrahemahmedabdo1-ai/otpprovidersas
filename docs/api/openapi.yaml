@@ -982,3 +982,145 @@ paths:
         "200": {description: OK}
         "401": {description: Not signed in}
         "403": {description: Role not allowed, or MFA not completed}
+
+  /v1/auth/resend-verification:
+    post:
+      tags: ["Auth"]
+      summary: "Resend email verification with rate limiting and no account enumeration"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: {type: string}
+      responses:
+        "202": {description: Accepted}
+        "429": {description: Rate limited}
+  /v1/console/status:
+    get:
+      tags: ["Customer"]
+      summary: "Current organization activation and verification status"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+  /v1/console/topups:
+    post:
+      tags: ["Wallet"]
+      summary: "Create a manual top-up request and linked Support conversation; no payment is collected"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountUsd]
+              properties:
+                amountUsd: {type: string, example: "10.00"}
+                note: {type: string, maxLength: 500}
+      responses:
+        "201": {description: Created with linked ticketId}
+        "400": {description: Validation failed}
+        "401": {description: Not signed in}
+  /v1/support/deposits:
+    get:
+      tags: ["Support"]
+      summary: "List open manual top-up requests for Support review"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Support role required}
+  /v1/support/deposits/{id}/submit:
+    post:
+      tags: ["Support"]
+      summary: "Submit reviewed transfer evidence reference to Admin; does not credit the wallet"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [evidenceNote]
+              properties:
+                evidenceNote: {type: string, minLength: 5, maxLength: 500}
+      responses:
+        "200": {description: Submitted for Admin review}
+        "403": {description: Support role required}
+        "409": {description: Deposit is no longer open}
+  /v1/dashboard/system:
+    get:
+      tags: ["Admin"]
+      summary: "Live operational system map and health checks"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Admin role required}
+
+  /v1/console/notifications:
+    get:
+      tags: ["Customer"]
+      summary: "List the authenticated user's notifications"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in}
+  /v1/console/notifications/{id}/read:
+    post:
+      tags: ["Customer"]
+      summary: "Mark one of the authenticated user's notifications as read"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: OK}
+        "404": {description: Not found}
+
+  /v1/dashboard/admin:
+    get:
+      tags: ["Admin"]
+      summary: "Live Admin dashboard aggregates"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Admin role required}
+  /v1/dashboard/support:
+    get:
+      tags: ["Support"]
+      summary: "Assigned Support workload and customer balances"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Support role required}
+
+  /v1/console/verification:
+    get:
+      tags: ["Customer"]
+      summary: "Get the authenticated customer's organization verification status"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: Current verification state}
+    post:
+      tags: ["Customer"]
+      summary: "Submit or update organization use-case details for administrator review"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [useCase]
+              properties:
+                useCase: {type: string, minLength: 20, maxLength: 1000}
+                website: {type: string, format: uri}
+      responses:
+        "202": {description: Submitted for review}
+        "400": {description: Validation failed}
+        "409": {description: Already approved}
