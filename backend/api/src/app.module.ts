@@ -30,12 +30,14 @@ import { DashboardController } from "./dashboard/dashboard.controller";
 import { DashboardService } from "./dashboard/dashboard.service";
 import { CustomerTopupController, SupportTopupController } from "./deposits/topup-workflow.controller";
 import { TopupWorkflowService } from "./deposits/topup-workflow.service";
+import { SystemMapController } from "./dashboard/system-map.controller";
+import { SystemMapService } from "./dashboard/system-map.service";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, DashboardController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, CustomerTopupController, SupportTopupController, WebhooksController],
+  controllers: [HealthController, DashboardController, SystemMapController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, CustomerTopupController, SupportTopupController, WebhooksController],
   providers: [
-    DbService, DashboardService, TopupWorkflowService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
+    DbService, DashboardService, SystemMapService, TopupWorkflowService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
