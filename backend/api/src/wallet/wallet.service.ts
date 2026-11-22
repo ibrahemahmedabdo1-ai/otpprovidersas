@@ -3,6 +3,7 @@ import { DbService } from "../db.service";
 import type { AuthContext } from "../auth/auth.service";
 import { writeAudit } from "../common/audit";
 import { cleanIp } from "../common/ip";
+import { RateLimiter } from "../common/rate-limit";
 import { microToUsd, parseUsdAmount, walletView, type WalletRow } from "./money";
 
 const rowToWallet = (r: Record<string, string>): WalletRow => ({ paid: BigInt(r.paid_micro_usd ?? 0), promo: BigInt(r.promo_micro_usd ?? 0), reserved: BigInt(r.reserved_micro_usd ?? 0), pending: BigInt(r.pending_micro_usd ?? 0) });
@@ -10,6 +11,7 @@ const rowToWallet = (r: Record<string, string>): WalletRow => ({ paid: BigInt(r.
 @Injectable()
 export class WalletService {
   constructor(private readonly db: DbService) {}
+  private readonly couponLimit = new RateLimiter(10, 3_600_000);
 
   private org(ctx: AuthContext): string {
     if ((ctx.role !== "customer" && ctx.role !== "super_admin") || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
@@ -67,6 +69,28 @@ export class WalletService {
       });
     } catch (e) {
       if ((e as Error).message === "too_many_open_deposits") throw new HttpException({ error: "too_many_open_deposits" }, HttpStatus.TOO_MANY_REQUESTS);
+      throw e;
+    }
+  }
+
+  /** Redeem a coupon for promo credit. The database function enforces every rule and posts one idempotent ledger entry. */
+  async redeemCoupon(ctx: AuthContext, body: unknown, ip: string | undefined) {
+    this.org(ctx);
+    const t = this.couponLimit.take(ctx.userId);
+    if (!t.allowed) throw new HttpException({ error: "rate_limited", retryAfterSec: t.retryAfterSec }, HttpStatus.TOO_MANY_REQUESTS);
+    const code = (body as { code?: unknown } | null)?.code;
+    if (typeof code !== "string" || !/^[A-Za-z0-9_-]{3,32}$/.test(code.trim())) throw new BadRequestException({ error: "coupon_invalid" });
+    try {
+      const micro = await this.db.tx(async (c) => {
+        const r = await c.query("SELECT redeem_coupon($1::uuid, $2::text) AS micro", [ctx.userId, code.trim()]);
+        await writeAudit(c, { actorId: ctx.userId, action: "coupon.redeemed", subjectType: "coupon", subjectId: ctx.userId, ip: cleanIp(ip), meta: { code: code.trim().toUpperCase() } });
+        return BigInt(r.rows[0].micro as string);
+      });
+      return { creditedUsd: microToUsd(micro), bucket: "promotional" };
+    } catch (e) {
+      const m = (e as Error).message;
+      if (m === "coupon_invalid" || m === "coupon_exhausted" || m === "coupon_already_used") throw new BadRequestException({ error: m });
+      if (m === "not_permitted") throw new ForbiddenException({ error: "forbidden" });
       throw e;
     }
   }

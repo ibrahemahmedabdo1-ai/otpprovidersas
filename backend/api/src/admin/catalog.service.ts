@@ -5,6 +5,7 @@ import { isUuid, parseDisplayName, parseEmail, parsePassword } from "../auth/val
 import { hashPassword } from "../auth/password";
 import { writeAudit } from "../common/audit";
 import { buildPublicPricing } from "./public-pricing";
+import { parseCouponInput } from "./coupons";
 
 const bad = (fields: Record<string, string>): never => { throw new BadRequestException({ error: "validation_failed", fields }); };
 const obj = (b: unknown): Record<string, unknown> => (b && typeof b === "object" ? (b as Record<string, unknown>) : {});
@@ -43,6 +44,39 @@ export class CatalogService {
     const r = await this.db.pool.query("UPDATE packages SET active=$2, commercially_approved = commercially_approved OR $2 WHERE id=$1 RETURNING id", [id, active]);
     if (!r.rowCount) throw new NotFoundException({ error: "not_found" });
     await writeAudit(this.db.pool, { actorId: c.userId, action: active ? "package.activated" : "package.deactivated", subjectType: "package", subjectId: id, ip });
+    return { ok: true };
+  }
+
+  async coupons(c: AuthContext) {
+    this.staff(c);
+    const r = await this.db.pool.query(`SELECT c.id, c.code::text AS code, p.name, p.value, p.active, c.max_redemptions, c.max_per_org, c.redeemed_count, c.expires_at
+      FROM coupons c JOIN promotions p ON p.id = c.promotion_id ORDER BY c.id DESC LIMIT 200`);
+    return r.rows.map((x) => ({ id: x.id, code: x.code, name: x.name, creditMicroUsd: String(x.value), active: x.active, maxRedemptions: x.max_redemptions, maxPerOrg: x.max_per_org, redeemed: x.redeemed_count, expiresAt: x.expires_at }));
+  }
+  async createCoupon(c: AuthContext, body: unknown, ip: string | null) {
+    this.sup(c);
+    const p = parseCouponInput(obj(body));
+    if (!p.ok) return bad(p.fields);
+    const v = p.value;
+    try {
+      const id = await this.db.tx(async (q) => {
+        const pr = await q.query("INSERT INTO promotions(name, kind, value, active, ends_at) VALUES ($1,'extra_credit',$2,true,$3) RETURNING id", [v.name, v.creditMicro, v.expiresAt]);
+        const cr = await q.query("INSERT INTO coupons(code, promotion_id, max_redemptions, max_per_org, expires_at) VALUES ($1,$2,$3,$4,$5) RETURNING id", [v.code, pr.rows[0].id, v.maxRedemptions, v.maxPerOrg, v.expiresAt]);
+        await writeAudit(q, { actorId: c.userId, action: "coupon.created", subjectType: "coupon", subjectId: cr.rows[0].id, ip, meta: { code: v.code, creditMicroUsd: v.creditMicro, maxRedemptions: v.maxRedemptions, maxPerOrg: v.maxPerOrg } });
+        return cr.rows[0].id as string;
+      });
+      return { id };
+    } catch (e) {
+      if ((e as { code?: string }).code === "23505") throw new ConflictException({ error: "code_taken" });
+      throw e;
+    }
+  }
+  async setCoupon(c: AuthContext, idRaw: string, body: unknown, ip: string | null) {
+    this.sup(c); const id = this.id(idRaw); const b = obj(body);
+    if (typeof b.active !== "boolean") bad({ active: "boolean required" });
+    const r = await this.db.pool.query("UPDATE promotions SET active = $2 WHERE id = (SELECT promotion_id FROM coupons WHERE id = $1) RETURNING id", [id, b.active]);
+    if (!r.rowCount) throw new NotFoundException({ error: "not_found" });
+    await writeAudit(this.db.pool, { actorId: c.userId, action: b.active ? "coupon.activated" : "coupon.deactivated", subjectType: "coupon", subjectId: id, ip });
     return { ok: true };
   }
 

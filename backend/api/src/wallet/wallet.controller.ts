@@ -10,6 +10,7 @@ export class WalletController {
   constructor(private readonly wallet: WalletService) {}
   @Get() balance(@Req() req: AuthedRequest) { return this.wallet.balance(req.auth!); }
   @Get("transactions") transactions(@Req() req: AuthedRequest, @Query("limit") limit?: string, @Query("before") before?: string) { return this.wallet.transactions(req.auth!, limit, before); }
+  @Post("coupons/redeem") @HttpCode(200) redeemCoupon(@Body() body: unknown, @Req() req: AuthedRequest) { return this.wallet.redeemCoupon(req.auth!, body, req.ip); }
   @Get("deposits") deposits(@Req() req: AuthedRequest) { return this.wallet.deposits(req.auth!); }
   @Post("deposits") @HttpCode(201) requestDeposit(@Body() body: unknown, @Req() req: AuthedRequest) { return this.wallet.requestDeposit(req.auth!, body, req.ip); }
 }
