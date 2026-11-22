@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Empty, Loading } from "../../components/ui";
 import { api, errorText, fmtDate } from "../../lib/api";
 
-type CustomerTicket = { ticketId:string; subject:string; status:string; priority:string; updatedAt:string; organization:string; email:string; paidBalanceUsd:number; giftBalanceUsd:number; reservedUsd:number };
+type CustomerTicket = { ticketId:string; subject:string; status:string; priority:string; updatedAt:string; organization:string; email:string; paidBalanceUsd:string; giftBalanceUsd:string; reservedUsd:string };
 type Dashboard = { assignedTickets:number; openTickets:number; waitingTickets:number; escalatedTickets:number; resolvedTickets:number; customers:CustomerTicket[] };
 
 const usd=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
@@ -25,7 +25,7 @@ export default function SupportDashboard() {
    <div className="pagehead"><h2>Assigned customers & wallet balances</h2><p>Paid wallet and promotional gift balance are displayed separately. Gift credit is not cash and is not withdrawable.</p></div>
    {data.customers.length===0?<Empty title="No assigned customers yet" body="Tickets assigned to you will appear here."/>:
    <div className="tablewrap"><table><thead><tr><th>Customer</th><th>Ticket</th><th>Status</th><th>Paid wallet</th><th>Gift balance</th><th>Reserved</th><th>Last activity</th></tr></thead><tbody>
-    {data.customers.map(c=><tr key={c.ticketId}><td><strong>{c.email}</strong><div className="muted">{c.organization}</div></td><td>{c.subject}</td><td><span className="chip">{c.status}</span></td><td>{usd(c.paidBalanceUsd)}</td><td>{usd(c.giftBalanceUsd)}</td><td>{usd(c.reservedUsd)}</td><td>{fmtDate(c.updatedAt)}</td></tr>)}
+    {data.customers.map(c=><tr key={c.ticketId}><td><strong>{c.email}</strong><div className="muted">{c.organization}</div></td><td>{c.subject}</td><td><span className="chip">{c.status}</span></td><td>${c.paidBalanceUsd}</td><td>${c.giftBalanceUsd}</td><td>${c.reservedUsd}</td><td>{fmtDate(c.updatedAt)}</td></tr>)}
    </tbody></table></div>}
    <div className="row"><a className="btn" href="/tickets">Open ticket inbox</a></div>
   </>}
