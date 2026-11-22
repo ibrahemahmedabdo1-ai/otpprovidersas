@@ -8,7 +8,12 @@ export class DbService implements OnModuleDestroy {
   constructor() {
     const cfg = loadConfig(process.env);
     // Neon requires TLS; the URL carries sslmode=require. 15 s connect timeout covers a Neon cold start (scale-to-zero resume); queries still time out at 10 s.
-    this.pool = new Pool({ connectionString: cfg.databaseUrl, max: 10, connectionTimeoutMillis: 15000, idleTimeoutMillis: 30000, statement_timeout: 10000 });
+    // Be explicit: pg-connection-string warns that "require" will change semantics in a future major release.
+    const databaseUrl = new URL(cfg.databaseUrl);
+    if (["require", "prefer", "verify-ca"].includes(databaseUrl.searchParams.get("sslmode") ?? "")) {
+      databaseUrl.searchParams.set("sslmode", "verify-full");
+    }
+    this.pool = new Pool({ connectionString: databaseUrl.toString(), max: 10, connectionTimeoutMillis: 15000, idleTimeoutMillis: 30000, statement_timeout: 10000 });
   }
   async ping(): Promise<boolean> {
     try { await this.pool.query("SELECT 1"); return true; } catch { return false; }
