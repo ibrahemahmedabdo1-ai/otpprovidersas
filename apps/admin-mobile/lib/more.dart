@@ -57,19 +57,34 @@ Future<void> _post(BuildContext context, String path, Map<String, dynamic> body,
   await reload();
 }
 
+Future<void> _sendReset(BuildContext context, Map<String, dynamic> u) async {
+  final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+    title: const Text('Send reset link'),
+    content: Text('Email a one-time password reset link (valid 1 hour) to ${u['email']}?'),
+    actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Send'))],
+  ));
+  if (ok != true || !context.mounted) return;
+  final r = await Api.post('/v1/auth/customers/${u['id']}/password-reset', {});
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r.ok ? 'Reset link sent to ${u['email']}.' : errorText(r))));
+}
+
 class UsersTab extends StatelessWidget {
   final bool isSuper;
   final String myId;
   const UsersTab({super.key, required this.isSuper, required this.myId});
   @override
   Widget build(BuildContext context) => RemoteList(
-    path: '/v1/admin/users', intro: 'Accounts. A Super Admin can suspend or reactivate; suspending ends the sessions.', empty: 'No users.',
+    path: '/v1/admin/users', intro: 'Accounts. Send a customer a one-time reset link; a Super Admin can suspend or reactivate.', empty: 'No users.',
     item: (ctx, u, reload) {
       final canAct = isSuper && u['role'] != 'super_admin' && u['id'] != myId && (u['status'] == 'active' || u['status'] == 'suspended');
       return Card(child: ListTile(
         title: Text('${u['email']}'),
         subtitle: Text('${u['name']}  -  ${u['role']}  -  ${u['status']}${u['organization'] != null ? '  -  ${u['organization']}' : ''}'),
-        trailing: canAct ? TextButton(onPressed: () => _post(ctx, '/v1/admin/users/${u['id']}/status', {'status': u['status'] == 'active' ? 'suspended' : 'active'}, reload), child: Text(u['status'] == 'active' ? 'Suspend' : 'Reactivate')) : null,
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (u['role'] == 'customer' && u['status'] == 'active') TextButton(onPressed: () => _sendReset(ctx, u), child: const Text('Reset link')),
+          if (canAct) TextButton(onPressed: () => _post(ctx, '/v1/admin/users/${u['id']}/status', {'status': u['status'] == 'active' ? 'suspended' : 'active'}, reload), child: Text(u['status'] == 'active' ? 'Suspend' : 'Reactivate')),
+        ]),
       ));
     },
   );

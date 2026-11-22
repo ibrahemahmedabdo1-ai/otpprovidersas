@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import { DbService } from "../db.service";
 import { CONFIG } from "../tokens";
@@ -69,24 +69,28 @@ export class AuthService {
   }
 
 
-  /** Always answers the same way. Only active customer accounts get a link: staff passwords are never reset by e-mail. */
-  async forgotPassword(body: unknown, ip: string | undefined): Promise<void> {
-    const email = parseEmail((body as { email?: unknown } | null)?.email);
-    if (!email.ok) return;
+  /**
+   * Password recovery is not self-service. Only an Admin or Super Admin (never Support) can send a customer a one-time
+   * reset link (valid 1 hour). Staff passwords are never reset by e-mail. The action is audited under the acting admin.
+   */
+  async adminSendCustomerReset(ctx: AuthContext, userId: string, ip: string | undefined): Promise<{ ok: true }> {
+    if (ctx.role !== "super_admin" && ctx.role !== "admin_staff") throw new ForbiddenException({ error: "forbidden" });
+    if (!isUuid(userId)) throw new NotFoundException({ error: "not_found" });
     const tok = newToken();
-    const target = await this.db.tx(async (c) => {
-      const u = await c.query("SELECT id FROM users WHERE email = $1 AND role = 'customer' AND status = 'active'", [email.value]);
-      const userId: string | undefined = u.rows[0]?.id;
-      if (!userId) return false;
+    const email = await this.db.tx(async (c) => {
+      const u = await c.query("SELECT id, email FROM users WHERE id = $1 AND role = 'customer' AND status = 'active'", [userId]);
+      if (!u.rows[0]) throw new NotFoundException({ error: "not_found" });
       await c.query("UPDATE email_tokens SET used_at = now() WHERE user_id = $1 AND purpose = 'reset_password' AND used_at IS NULL", [userId]);
       await c.query("INSERT INTO email_tokens(user_id, purpose, token_hash, expires_at) VALUES ($1,'reset_password',$2, now() + interval '1 hour')", [userId, tok.hash]);
-      await this.audit(c, "auth.password_reset_requested", userId, cleanIp(ip));
-      return true;
+      await c.query("INSERT INTO audit_events(actor_id, action, subject_type, subject_id, ip, metadata) VALUES ($1::uuid,'admin.customer_password_reset_sent','user',$2::text,$3::inet,'{}'::jsonb)", [ctx.userId, userId, cleanIp(ip)]);
+      return u.rows[0].email as string;
     });
-    if (target) {
-      try { await this.mailer.sendPasswordReset(email.value, `${this.cfg.appBaseUrl}/reset-password?token=${tok.token}`); }
-      catch (e) { this.log.error(`password reset mail failed: ${e instanceof Error ? e.message : "unknown"}`); }
+    try { await this.mailer.sendPasswordReset(email, `${this.cfg.appBaseUrl}/reset-password?token=${tok.token}`); }
+    catch (e) {
+      this.log.error(`password reset mail failed: ${e instanceof Error ? e.message : "unknown"}`);
+      throw new ServiceUnavailableException({ error: "mail_failed" });
     }
+    return { ok: true };
   }
 
   /** One-time token. Success signs the account out everywhere and clears any lockout. */

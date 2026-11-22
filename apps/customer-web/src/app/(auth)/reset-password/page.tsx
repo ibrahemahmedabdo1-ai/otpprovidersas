@@ -40,7 +40,7 @@ export default function Reset() {
         </form>
       )}
       {state === "ok" && <><Alert kind="ok">{t.reset.okBody}</Alert><Link className="btn" href="/login">{t.auth.verify.toLogin}</Link></>}
-      {state === "fail" && <><Alert>{t.reset.failBody}</Alert><Link className="btn" href="/forgot-password">{t.forgot.submit}</Link></>}
+      {state === "fail" && <><Alert>{t.reset.failBody}</Alert><Link className="btn" href="/forgot-password">{t.forgot.link}</Link></>}
     </AuthFrame>
   );
 }

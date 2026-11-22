@@ -72,23 +72,17 @@ paths:
         "200": {description: OK}
         "400": {description: Validation failed}
         "429": {description: Rate limited}
-  /v1/auth/password/forgot:
+  /v1/auth/customers/{id}/password-reset:
     post:
       tags: ["Auth"]
-      summary: "Request a password reset link (customers only; always 202)"
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email: {type: string, description: "string"}
+      summary: "Admin / Super Admin only: email a customer a one-time reset link (1 hour). Not available to Support or customers."
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
       responses:
-        "202": {description: OK}
-        "400": {description: Validation failed}
-        "429": {description: Rate limited}
+        "200": {description: OK}
+        "403": {description: Not an Admin}
+        "404": {description: No active customer account}
+        "503": {description: Email could not be sent}
   /v1/auth/password/reset:
     post:
       tags: ["Auth"]
