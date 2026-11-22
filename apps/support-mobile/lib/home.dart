@@ -9,11 +9,55 @@ class Home extends StatelessWidget {
   const Home({super.key, required this.me, required this.signOut});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tickets'), actions: [TextButton(onPressed: signOut, child: const Text('Sign out'))]),
-      body: const TicketList(),
-    );
+    return DefaultTabController(length:2,child:Scaffold(
+      appBar: AppBar(title: const Text('Support'), actions: [TextButton(onPressed: signOut, child: const Text('Sign out'))],bottom:const TabBar(tabs:[Tab(text:'Tickets'),Tab(text:'Top-ups')])),
+      body:const TabBarView(children:[TicketList(),TopupQueue()]),
+    ));
   }
+}
+
+class TopupQueue extends StatefulWidget {
+  const TopupQueue({super.key});
+  @override
+  State<TopupQueue> createState()=>_TopupQueueState();
+}
+class _TopupQueueState extends State<TopupQueue>{
+  List<dynamic>? rows;String err='';String ok='';bool loading=false;
+  final Map<String,TextEditingController> notes={};
+  @override
+  void initState(){super.initState();_load();}
+  @override
+  void dispose(){for(final c in notes.values){c.dispose();}super.dispose();}
+  Future<void> _load() async{
+    setState(() { loading=true; });
+    final r=await Api.get('/v1/support/deposits');if(!mounted)return;
+    setState(() { loading=false;if(r.ok){rows=r.list;err='';}else{rows=[];err=errorText(r);} });
+  }
+  Future<void> _submit(String id) async{
+    final note=notes[id]?.text.trim()??'';
+    if(note.length<5){setState(()=>err='Add the transfer reference and how it was checked (at least 5 characters).');return;}
+    setState(() { loading=true;err='';ok=''; });
+    final r=await Api.post('/v1/support/deposits/$id/submit',{'evidenceNote':note});
+    if(!mounted)return;
+    setState(() { loading=false; });
+    if(r.ok){setState(()=>ok='Submitted to Admin. No wallet balance was changed.');notes[id]?.clear();await _load();}else setState(()=>err=errorText(r));
+  }
+  @override
+  Widget build(BuildContext context)=>RefreshIndicator(onRefresh:_load,child:ListView(padding:const EdgeInsets.all(16),children:[
+    const Text('Review transfer evidence, record the reference and submit to Admin. Support cannot approve or credit wallet funds.'),
+    if(err.isNotEmpty)Banner2(err),if(ok.isNotEmpty)Banner2(ok,ok:true),if(rows==null)const LinearProgressIndicator(),
+    if(rows!=null&&rows!.isEmpty)const Text('No open top-up requests.'),
+    for(final raw in rows??<dynamic>[]) Builder(builder:(context){
+      final d=raw as Map<String,dynamic>;final id='${d['id']}';final controller=notes.putIfAbsent(id,()=>TextEditingController());
+      return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('${d['customerEmail']}',style:Theme.of(context).textTheme.titleMedium),Text('${d['organization']} · ${d['amountUsd']} · ${d['status']}'),
+        if(d['note']!=null)Text('Customer note: ${d['note']}'),
+        if(d['ticketId'] is String)TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>TicketScreen(id:'${d['ticketId']}'))),icon:const Icon(Icons.chat),label:const Text('Open customer conversation')),
+        TextField(controller:controller,minLines:2,maxLines:4,maxLength:500,decoration:const InputDecoration(labelText:'Transfer reference and evidence review',border:OutlineInputBorder())),
+        const SizedBox(height:8),FilledButton(onPressed:loading?null:()=>_submit(id),child:const Text('Submit to Admin for approval'))
+      ])));
+    })
+  ]));
 }
 
 class TicketList extends StatefulWidget {
