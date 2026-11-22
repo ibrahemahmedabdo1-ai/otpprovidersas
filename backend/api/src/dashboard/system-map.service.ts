@@ -15,6 +15,18 @@ export class SystemMapService {
   const push=(x:Item)=>items.push(x);
   const dbUp=await this.db.ping();
   push({key:"api",label:"API runtime",state:"healthy",detail:"Authenticated system-status endpoint responded.",lastCheckedAt:checkedAt,impact:"Core API process is reachable.",action:"Continue monitoring."});
+  const frontendTargets=[
+   {key:"website",label:"Public website",url:"https://www.otpprovider.com"},
+   {key:"customer-app",label:"Customer dashboard",url:"https://console.otpprovider.com"},
+   {key:"admin-app",label:"Admin dashboard",url:"https://admin.otpprovider.com"},
+   {key:"support-app",label:"Support dashboard",url:"https://support.otpprovider.com"}
+  ];
+  const frontendChecks=await Promise.all(frontendTargets.map(async target=>{
+   try{const response=await fetch(target.url,{method:"GET",redirect:"follow",signal:AbortSignal.timeout(5000),headers:{"cache-control":"no-cache"}});
+    return {...target,status:response.status,ok:response.ok};}
+   catch{return {...target,status:0,ok:false};}
+  }));
+  for(const x of frontendChecks)push({key:x.key,label:x.label,state:x.ok?"healthy":x.status>=500?"critical":"warning",detail:x.ok?"Public HTTPS endpoint returned HTTP "+x.status+".":"Frontend endpoint did not return a successful response"+(x.status?" (HTTP "+x.status+")":"")+".",lastCheckedAt:checkedAt,impact:"Customer and staff access to this application.",action:x.ok?"Continue monitoring availability.":"Check Vercel deployment status, domain assignment and runtime errors."});
   push({key:"database",label:"Neon PostgreSQL",state:dbUp?"healthy":"critical",detail:dbUp?"Database connection check succeeded.":"Database ping failed.",lastCheckedAt:checkedAt,impact:dbUp?"Core data access is available.":"Authentication, wallet and OTP operations may fail.",action:dbUp?"Monitor latency and connection pool.":"Check Neon availability, DATABASE_URL and network access."});
   if(dbUp){
    const safe=async(sql:string)=>{try{return await this.db.pool.query(sql);}catch{return null;}};
