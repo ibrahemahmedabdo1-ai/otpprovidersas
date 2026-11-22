@@ -91,12 +91,12 @@ export default function WalletPage() {
       <h2>{t.wallet.depositsTitle}</h2>
       {deps === null ? <Loading /> : deps.length === 0 ? <Empty title={t.wallet.depositsEmpty} /> : (
         <div className="tablewrap"><table>
-          <thead><tr><th scope="col">{t.wallet.colAmount}</th><th scope="col">{t.wallet.colStatus}</th><th scope="col">{t.wallet.colRequested}</th><th scope="col">{t.wallet.colDecided}</th><th scope="col">{t.wallet.colNote}</th></tr></thead>
+          <thead><tr><th scope="col">{t.wallet.colAmount}</th><th scope="col">{t.wallet.colStatus}</th><th scope="col">{t.wallet.colRequested}</th><th scope="col">{t.wallet.colDecided}</th><th scope="col">{t.wallet.colNote}</th><th scope="col">Support</th></tr></thead>
           <tbody>{deps.map((d) => (
             <tr key={d.id}>
               <td dir="ltr">{fmtUsd(d.amountUsd, locale)}</td>
               <td><span className={`chip ${d.status === "approved" ? "ok" : d.status === "rejected" ? "bad" : "warn"}`}>{statusLabel(d.status)}</span></td>
-              <td>{fmtDate(d.createdAt, locale)}</td><td>{d.decidedAt ? fmtDate(d.decidedAt, locale) : ""}</td><td>{d.note ?? ""}</td>
+              <td>{fmtDate(d.createdAt, locale)}</td><td>{d.decidedAt ? fmtDate(d.decidedAt, locale) : ""}</td><td>{d.note ?? ""}</td><td>{d.ticketId ? <Link href={`/tickets/${d.ticketId}`}>Open conversation</Link> : "—"}</td>
             </tr>
           ))}</tbody>
         </table></div>
