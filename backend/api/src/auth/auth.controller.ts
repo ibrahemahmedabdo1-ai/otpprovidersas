@@ -13,7 +13,9 @@ export class AuthController {
   private loginIpLimit = new RateLimiter(20, 15 * 60_000);       // 20 attempts / 15 min / IP
   private loginEmailLimit = new RateLimiter(10, 15 * 60_000);    // 10 attempts / 15 min / email
   private verifyLimit = new RateLimiter(20, 15 * 60_000);
-  private resendIpLimit = new RateLimiter(10, 60 * 60_000);\n  private resendEmailLimit = new RateLimiter(3, 60 * 60_000);\n  private forgotIpLimit = new RateLimiter(10, 60 * 60_000);    // 10 reset requests / hour / IP
+  private resendIpLimit = new RateLimiter(10, 60 * 60_000);
+  private resendEmailLimit = new RateLimiter(3, 60 * 60_000);
+  private forgotIpLimit = new RateLimiter(10, 60 * 60_000);    // 10 reset requests / hour / IP
   private forgotEmailLimit = new RateLimiter(3, 60 * 60_000);   // 3 / hour / address
   constructor(private readonly auth: AuthService, private readonly mfa: MfaService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
