@@ -15,7 +15,9 @@ export default function Register() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);\n  const [resending,setResending]=useState(false);\n  const [resendMsg,setResendMsg]=useState("");
+  const [done, setDone] = useState(false);
+  const [resending,setResending]=useState(false);
+  const [resendMsg,setResendMsg]=useState("");
   const [msg, setMsg] = useState("");
   const [fe, setFe] = useState<Fields>({});
 
