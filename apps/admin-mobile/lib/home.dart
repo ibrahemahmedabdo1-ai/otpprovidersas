@@ -24,6 +24,7 @@ class _HomeState extends State<Home> {
     ('Prices', Icons.sell_outlined, PricingTab(isSuper: isSuper)),
     ('Packages', Icons.inventory_2_outlined, PackagesTab(isSuper: isSuper)),
     ('Providers', Icons.hub_outlined, ProvidersTab(isSuper: isSuper)),
+    ('System Map', Icons.monitor_heart_outlined, const SystemMapTab()),
     ('Tickets', Icons.support_agent_outlined, const TicketsTab()),
     ('Webhooks', Icons.webhook_outlined, const WebhooksTab()),
     ('Audit log', Icons.fact_check_outlined, const AuditTab()),
@@ -89,7 +90,7 @@ class _DepositsState extends State<DepositsTab> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    final r = await Api.get('/v1/admin/deposits?status=requested');
+    final r = await Api.get('/v1/admin/deposits');
     if (!mounted) return;
     setState(() { if (r.ok) { rows = r.list; } else { rows = []; err = errorText(r); } });
   }
@@ -127,6 +128,8 @@ class _DepositsState extends State<DepositsTab> {
             Text('${usd(d['amountUsd'])} - ${d['status']}'.replaceAll('_', ' ')),
             if (d['approvalStatus'] != null) Text('Approval: ${d['approvalStatus']}'),
             if (d['note'] != null) Text('Customer note: ${d['note']}'),
+            if (d['supportEvidenceNote'] != null) Text('Support evidence review: ${d['supportEvidenceNote']}'),
+            if (d['ticketId'] != null) Text('Linked support ticket: ${d['ticketId']}'),
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: [
               if (!widget.isSuper && d['approvalStatus'] != 'approved' && d['approvalStatus'] != 'pending') OutlinedButton(onPressed: () => _requestApproval('${d['id']}'), child: const Text('Request approval')),
@@ -260,3 +263,30 @@ class _ProvidersState extends State<ProvidersTab> {
     );
   }
 }
+
+class SystemMapTab extends StatefulWidget {
+  const SystemMapTab({super.key});
+  @override
+  State<SystemMapTab> createState()=>_SystemMapTabState();
+}
+class _SystemMapTabState extends State<SystemMapTab>{
+  Map<String,dynamic>? data;String err='';bool busy=false;
+  @override
+  void initState(){super.initState();_load();}
+  Future<void> _load() async{
+    setState(()=>busy=true);final r=await Api.get('/v1/dashboard/system');if(!mounted)return;
+    setState(()=>{busy=false;if(r.ok){data=r.map;err='';}else{err=errorText(r);}});
+  }
+  Color _color(String s)=>s=='healthy'?Colors.green:s=='critical'?Colors.red:Colors.orange;
+  @override
+  Widget build(BuildContext context)=>RefreshIndicator(onRefresh:_load,child:ListView(padding:const EdgeInsets.all(16),children:[
+    Text('System status: ${data?['overall']??'Loading'}',style:Theme.of(context).textTheme.titleLarge),
+    if(err.isNotEmpty)Banner2(err),if(data==null)const LinearProgressIndicator(),
+    if(data!=null) ...[
+      Wrap(spacing:8,runSpacing:8,children:['healthy','warning','critical','unknown'].map((s)=>Chip(label:Text('${s.toUpperCase()}: ${(data!['counts'] as Map<String,dynamic>)[s]??0}'),backgroundColor:_color(s).withValues(alpha:.12))).toList()),
+      for(final raw in data!['items'] as List<dynamic>) Builder(builder:(context){final x=raw as Map<String,dynamic>;final state='${x['state']}';return Card(child:ListTile(leading:Icon(Icons.circle,color:_color(state),size:14),title:Text('${x['label']}'),subtitle:Text('${x['detail']}\nAction: ${x['action']}')));}),
+    ],
+    OutlinedButton(onPressed:busy?null:_load,child:Text(busy?'Checking…':'Run checks'))
+  ]));
+}
+
