@@ -60,7 +60,7 @@ export class CatalogService {
     const v = p.value;
     try {
       const id = await this.db.tx(async (q) => {
-        const pr = await q.query("INSERT INTO promotions(name, kind, value, active, ends_at) VALUES ($1,'extra_credit',$2,true,$3) RETURNING id", [v.name, v.creditMicro, v.expiresAt]);
+        const pr = await q.query("INSERT INTO promotions(name, kind, value, active, ends_at, created_by) VALUES ($1,'extra_credit',$2,true,$3,$4) RETURNING id", [v.name, v.creditMicro, v.expiresAt, c.userId]);
         const cr = await q.query("INSERT INTO coupons(code, promotion_id, max_redemptions, max_per_org, expires_at) VALUES ($1,$2,$3,$4,$5) RETURNING id", [v.code, pr.rows[0].id, v.maxRedemptions, v.maxPerOrg, v.expiresAt]);
         await writeAudit(q, { actorId: c.userId, action: "coupon.created", subjectType: "coupon", subjectId: cr.rows[0].id, ip, meta: { code: v.code, creditMicroUsd: v.creditMicro, maxRedemptions: v.maxRedemptions, maxPerOrg: v.maxPerOrg } });
         return cr.rows[0].id as string;
