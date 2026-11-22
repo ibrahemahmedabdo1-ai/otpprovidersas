@@ -42,7 +42,7 @@ export default function UnifiedLogin({ locale }: { locale: Locale }) {
   function proceed(r: string) {
     setRole(r);
     const p = panelsFor(r);
-    if (p.length === 1) void go(p[0]);
+    if (p.length === 1 && p[0]) void go(p[0]);
     else if (p.length > 1) setStep("choose");
     else { setErr(t.cannot); setStep("creds"); void call("/v1/auth/logout"); }
   }
