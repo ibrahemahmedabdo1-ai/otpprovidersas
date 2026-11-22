@@ -1081,3 +1081,20 @@ paths:
       responses:
         "200": {description: OK}
         "404": {description: Not found}
+
+  /v1/dashboard/admin:
+    get:
+      tags: ["Admin"]
+      summary: "Live Admin dashboard aggregates"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Admin role required}
+  /v1/dashboard/support:
+    get:
+      tags: ["Support"]
+      summary: "Assigned Support workload and customer balances"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Support role required}
