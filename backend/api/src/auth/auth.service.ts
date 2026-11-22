@@ -8,6 +8,7 @@ import { Mailer } from "./mailer";
 import { burnPasswordTime, hashPassword, verifyPassword } from "./password";
 import { isTokenShape, isUuid, parseDisplayName, parseEmail, parseLocale, parsePassword } from "./validators";
 import { newToken, sha256 } from "./tokens";
+import { canOpenPanel } from "./panels";
 
 /** Anything with a query(text, values) method: a pool or a transaction client. */
 type Queryable = { query(text: string, values?: unknown[]): Promise<unknown> };
@@ -91,6 +92,40 @@ export class AuthService {
       throw new ServiceUnavailableException({ error: "mail_failed" });
     }
     return { ok: true };
+  }
+
+  /** Single sign-in: a fully authenticated session (MFA done where required) gets a 30 s one-time code for one panel. */
+  async ssoStart(ctx: AuthContext, body: unknown, ip: string | undefined): Promise<{ code: string }> {
+    const target = (body as { target?: unknown } | null)?.target;
+    if (!canOpenPanel(ctx.role, target)) throw new ForbiddenException({ error: "forbidden" });
+    const tok = newToken();
+    await this.db.tx(async (c) => {
+      await c.query("DELETE FROM sso_handoffs WHERE expires_at < now() - interval '1 hour'");
+      await c.query("INSERT INTO sso_handoffs(user_id, code_hash, target, expires_at) VALUES ($1,$2,$3, now() + interval '30 seconds')", [ctx.userId, tok.hash, target]);
+      await this.audit(c, "auth.sso_started", ctx.userId, cleanIp(ip), { target });
+    });
+    return { code: tok.token };
+  }
+
+  /** Called by the panel itself (same-origin proxy), so the session cookie is set on the panel's own origin. */
+  async ssoRedeem(body: unknown, ip: string | undefined, userAgent: string | undefined): Promise<{ token: string; expires: Date; user: { id: string; email: string; name: string; role: string } }> {
+    const code = (body as { code?: unknown } | null)?.code;
+    if (!isTokenShape(code)) throw new BadRequestException({ error: "invalid_or_expired_code" });
+    const tok = newToken();
+    const addr = cleanIp(ip);
+    return this.db.tx(async (c) => {
+      const h = await c.query("UPDATE sso_handoffs SET used_at = now() WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING user_id, target", [sha256(code)]);
+      const row = h.rows[0];
+      if (!row) throw new BadRequestException({ error: "invalid_or_expired_code" });
+      const u = await c.query("SELECT id, email, display_name, role FROM users WHERE id = $1 AND status = 'active'", [row.user_id]);
+      const user = u.rows[0];
+      if (!user || !canOpenPanel(user.role as string, row.target)) throw new BadRequestException({ error: "invalid_or_expired_code" });
+      const hours = user.role === "customer" ? SESSION_DAYS * 24 : STAFF_SESSION_HOURS;
+      const expires = new Date(Date.now() + hours * 3_600_000);
+      await c.query("INSERT INTO sessions(user_id, token_hash, ip, user_agent, mfa_verified, expires_at) VALUES ($1,$2,$3,$4,true,$5)", [user.id, tok.hash, addr, userAgent?.slice(0, 300) ?? null, expires]);
+      await this.audit(c, "auth.sso_redeemed", user.id as string, addr, { target: row.target });
+      return { token: tok.token, expires, user: { id: user.id as string, email: user.email as string, name: user.display_name as string, role: user.role as string } };
+    });
   }
 
   /** One-time token. Success signs the account out everywhere and clears any lockout. */

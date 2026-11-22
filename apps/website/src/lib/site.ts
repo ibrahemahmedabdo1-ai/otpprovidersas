@@ -22,6 +22,13 @@ export const CONSOLE = {
   home: CONSOLE_URL,
 };
 
+/** Staff panels reached through the single sign-in page (override with NEXT_PUBLIC_ADMIN_URL / NEXT_PUBLIC_SUPPORT_URL). */
+export const PANELS = {
+  console: CONSOLE_URL.replace(/\/+$/, ""),
+  admin: (process.env.NEXT_PUBLIC_ADMIN_URL ?? "https://otpprovider-launch-admin.vercel.app").replace(/\/+$/, ""),
+  support: (process.env.NEXT_PUBLIC_SUPPORT_URL ?? "https://otpprovider-launch-support.vercel.app").replace(/\/+$/, ""),
+} as const;
+
 /** Contact link for sales questions: the company email when set, otherwise the sign-up page. */
 export const contactHref = () => (COMPANY.email ? `mailto:${COMPANY.email}` : CONSOLE.register);
 

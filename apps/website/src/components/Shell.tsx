@@ -44,7 +44,7 @@ export async function Shell({ locale, t, path, children }: { locale: Locale; t: 
           </nav>
           <div className="bar-end">
             <LangMenu locale={locale} path={path} label={l.header.language} />
-            <a className="login" href={CONSOLE.login} rel="noopener">{l.header.login}</a>
+            <a className="login" href={`/${locale}/login`}>{l.header.login}</a>
             <a className="btn small" href={CONSOLE.register} rel="noopener">{l.header.start}</a>
           </div>
         </div>
@@ -97,7 +97,7 @@ export async function Shell({ locale, t, path, children }: { locale: Locale; t: 
               <h4>{f.account}</h4>
               <ul>
                 <li><a href={CONSOLE.register} rel="noopener">{f.signup}</a></li>
-                <li><a href={CONSOLE.login} rel="noopener">{f.login}</a></li>
+                <li><a href={`/${locale}/login`}>{f.login}</a></li>
                 <li><a href={CONSOLE.forgot} rel="noopener">{f.forgot}</a></li>
               </ul>
             </div>
