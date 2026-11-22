@@ -28,14 +28,14 @@ import { DbService } from "./db.service";
 import { HealthController } from "./health.controller";
 import { DashboardController } from "./dashboard/dashboard.controller";
 import { DashboardService } from "./dashboard/dashboard.service";
-import { CustomerTopupController, SupportTopupController } from "./deposits/topup-workflow.controller";
+import { CustomerTopupController, SupportTopupController } from "./deposits/topup-workflow.controller";\nimport { CustomerStatusController } from "./deposits/customer-status.controller";
 import { TopupWorkflowService } from "./deposits/topup-workflow.service";
 import { SystemMapController } from "./dashboard/system-map.controller";
 import { SystemMapService } from "./dashboard/system-map.service";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, DashboardController, SystemMapController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, CustomerTopupController, SupportTopupController, WebhooksController],
+  controllers: [HealthController, DashboardController, SystemMapController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, CustomerTopupController, SupportTopupController, CustomerStatusController, WebhooksController],
   providers: [
     DbService, DashboardService, SystemMapService, TopupWorkflowService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
