@@ -64,7 +64,7 @@ export default function Deposits() {
               <tr key={d.id}>
                 <td>{d.organization.name}</td><td dir="ltr">${d.amountUsd.replace(/(\.\d\d)\d*$/, "$1")}</td>
                 <td><span className={`chip ${d.status === "approved" ? "ok" : d.status === "rejected" ? "bad" : "warn"}`}>{LABEL[d.status] ?? d.status}</span></td>
-                <td>{d.approvalStatus ?? ""}</td><td>{fmtDate(d.createdAt)}</td><td>{d.note ?? ""}</td>
+                <td>{d.approvalStatus ?? ""}</td><td>{fmtDate(d.createdAt)}</td><td>{d.note ?? ""}</td><td>{d.supportEvidenceNote ?? "Not submitted by Support yet"}</td><td>{d.ticketId ?? "—"}</td>
                 <td>{openRow ? (
                   <span className="row">
                     {isAdminOnly && d.approvalStatus !== "approved" && d.approvalStatus !== "pending" && <button className="btn ghost small" onClick={() => void requestApproval(d.id)}>Request approval</button>}
