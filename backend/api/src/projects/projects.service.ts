@@ -17,7 +17,7 @@ export class ProjectsService {
   constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
   private org(ctx: AuthContext): string {
-    if (ctx.role !== "customer" || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
+    if ((ctx.role !== "customer" && ctx.role !== "super_admin") || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
     return ctx.organizationId;
   }
   /** Every lookup is scoped by the caller's organization: another tenant's project id behaves like a missing one (no IDOR). */

@@ -12,7 +12,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { if (user === null) router.replace("/login"); }, [user, router]);
 
   if (user === undefined || user === null) return <div className="center"><Loading /></div>;
-  if (user.role !== "customer" || user.mfaPending) {
+  if ((user.role !== "customer" && user.role !== "super_admin") || user.mfaPending) {
     return (
       <div className="center"><div className="card narrow">
         <h1>{t.auth.notCustomer.title}</h1><Alert kind="warn">{t.auth.notCustomer.body}</Alert>

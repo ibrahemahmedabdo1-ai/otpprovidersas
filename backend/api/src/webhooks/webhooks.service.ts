@@ -37,7 +37,7 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
   private org(ctx: AuthContext): string {
-    if (ctx.role !== "customer" || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
+    if ((ctx.role !== "customer" && ctx.role !== "super_admin") || !ctx.organizationId) throw new ForbiddenException({ error: "forbidden" });
     return ctx.organizationId;
   }
   private async own(ctx: AuthContext, projectId: string): Promise<void> {
