@@ -1098,3 +1098,29 @@ paths:
       responses:
         "200": {description: OK}
         "403": {description: Support role required}
+
+  /v1/console/verification:
+    get:
+      tags: ["Customer"]
+      summary: "Get the authenticated customer's organization verification status"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: Current verification state}
+    post:
+      tags: ["Customer"]
+      summary: "Submit or update organization use-case details for administrator review"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [useCase]
+              properties:
+                useCase: {type: string, minLength: 20, maxLength: 1000}
+                website: {type: string, format: uri}
+      responses:
+        "202": {description: Submitted for review}
+        "400": {description: Validation failed}
+        "409": {description: Already approved}
