@@ -22,7 +22,7 @@ export class SystemMapService {
    {key:"support-app",label:"Support dashboard",url:"https://support.otpprovider.com"}
   ];
   const frontendChecks=await Promise.all(frontendTargets.map(async target=>{
-   try{const response=await fetch(target.url,{method:"GET",redirect:"follow",signal:AbortSignal.timeout(5000),headers:{"cache-control":"no-cache"}});
+   try{const response=await fetch(target.url,{method:"GET",redirect:"follow",signal:AbortSignal.timeout(5000),headers:{"cache-control":"no-cache"}}) as unknown as {status:number;ok:boolean};
     return {...target,status:response.status,ok:response.ok};}
    catch{return {...target,status:0,ok:false};}
   }));
