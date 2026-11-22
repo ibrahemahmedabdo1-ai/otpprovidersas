@@ -37,7 +37,7 @@ export default function TicketPage() {
   }
   return (
     <>
-      <p><Link href="/">← All tickets</Link></p>
+      <p><Link href="/tickets">← All tickets</Link></p>
       {err && <Alert>{err}</Alert>}
       {!d ? (err ? null : <Loading />) : (
         <>
