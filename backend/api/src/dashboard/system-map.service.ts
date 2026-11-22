@@ -18,13 +18,14 @@ export class SystemMapService {
   push({key:"database",label:"Neon PostgreSQL",state:dbUp?"healthy":"critical",detail:dbUp?"Database connection check succeeded.":"Database ping failed.",lastCheckedAt:checkedAt,impact:dbUp?"Core data access is available.":"Authentication, wallet and OTP operations may fail.",action:dbUp?"Monitor latency and connection pool.":"Check Neon availability, DATABASE_URL and network access."});
   if(dbUp){
    const safe=async(sql:string)=>{try{return await this.db.pool.query(sql);}catch{return null;}};
-   const [providers,devices,queues,security,otp,mail]=await Promise.all([
+   const [providers,devices,queues,security,otp,mail,onboarding]=await Promise.all([
     safe(`SELECT p.key,p.channel,p.enabled,p.maintenance,h.status,h.checked_at,h.detail FROM providers p LEFT JOIN LATERAL (SELECT status,checked_at,detail FROM provider_health ph WHERE ph.provider_id=p.id ORDER BY checked_at DESC LIMIT 1) h ON true ORDER BY p.channel,p.priority`),
     safe("SELECT state,count(*)::int AS n FROM whatsapp_devices GROUP BY state"),
     safe("SELECT count(*) FILTER (WHERE status='dead')::int AS dead,count(*) FILTER (WHERE status='pending' AND next_attempt_at<=now())::int AS overdue FROM webhook_deliveries"),
     safe("SELECT count(*)::int AS n FROM login_history WHERE suspicious=true AND created_at>=now()-interval '24 hours'"),
     safe("SELECT count(*)::int AS total,count(*) FILTER (WHERE status='failed')::int AS failed FROM otp_requests WHERE created_at>=now()-interval '1 hour' AND mode='live'"),
-    safe("SELECT count(*)::int AS total,count(*) FILTER (WHERE domain_verified=true)::int AS verified FROM email_configs")
+    safe("SELECT count(*)::int AS total,count(*) FILTER (WHERE domain_verified=true)::int AS verified FROM email_configs"),
+    safe("SELECT (SELECT count(*)::int FROM users WHERE role='customer' AND status='pending') AS pending_email,(SELECT count(*)::int FROM organizations o LEFT JOIN LATERAL (SELECT status FROM customer_verifications WHERE organization_id=o.id ORDER BY created_at DESC LIMIT 1) cv ON true WHERE cv.status IS DISTINCT FROM 'approved') AS pending_admin_verification")
    ]);
    if(providers){
     for(const p of providers.rows){
@@ -51,6 +52,10 @@ export class SystemMapService {
     push({key:"otp-delivery",label:"Live OTP outcomes (1h)",state:rate>=0.25&&total>=4?"critical":failed>0?"warning":"healthy",detail:failed+" failed of "+total+" live OTP requests ("+(rate*100).toFixed(1)+"%).",lastCheckedAt:checkedAt,impact:"Customer verification success may be affected.",action:failed>0?"Inspect provider failures, receipts and routing before enabling more traffic.":"Continue monitoring delivery and verification outcomes."});
    }
    push({key:"private-storage",label:"Private evidence storage and scanning",state:"warning",detail:"No verified private object-storage upload, malware scanning or signed-download flow is registered in this application build.",lastCheckedAt:checkedAt,impact:"Transfer proof files cannot yet be accepted and served through a verified secure attachment pipeline.",action:"Configure private storage, file-type and size validation, malware scanning, signed URLs and audit logging before enabling proof uploads."});
+   if(onboarding){
+    const pendingEmail=Number(onboarding.rows[0]?.pending_email??0),pendingReview=Number(onboarding.rows[0]?.pending_admin_verification??0);
+    push({key:"customer-onboarding",label:"Customer activation queue",state:pendingEmail+pendingReview>0?"warning":"healthy",detail:pendingEmail+" customers have not completed email verification; "+pendingReview+" organizations are not approved for live sending.",lastCheckedAt:checkedAt,impact:"Customers may register successfully but remain unable to use live OTP until email verification and administrator review are complete.",action:"Review pending signups, confirm email delivery, and approve only legitimate customer organizations."});
+   }
    if(mail){
     const total=Number(mail.rows[0]?.total??0),verified=Number(mail.rows[0]?.verified??0);
     push({key:"mail-domains",label:"Email sender domains",state:total>0&&verified===total?"healthy":"warning",detail:verified+" verified of "+total+" configured sender domains.",lastCheckedAt:checkedAt,impact:"Unverified sender domains can block transactional email.",action:total===verified?"Monitor bounces and complaints.":"Verify sender DNS and provider configuration before relying on outbound email."});
