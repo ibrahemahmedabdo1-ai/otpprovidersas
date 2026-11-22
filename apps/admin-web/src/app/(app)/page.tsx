@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Empty, Loading } from "../../components/ui";
 import { api, errorText, fmtDate } from "../../lib/api";
-type Dashboard={customers:number;activeCustomers:number;otp30d:{total:number;successful:number;failed:number;email:number;whatsapp:number};wallet:{paidUsd:number;giftUsd:number};tickets:{open:number;escalated:number};pendingDeposits:number;providers:{key:string;channel:string;enabled:boolean;maintenance:boolean;health:string;checkedAt:string|null}[];recentActivity:{action:string;subject_type:string;subject_id:string;created_at:string}[]};
-const usd=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
+type Dashboard={customers:number;activeCustomers:number;otp30d:{total:number;successful:number;failed:number;email:number;whatsapp:number};wallet:{paidUsd:string;giftUsd:string};tickets:{open:number;escalated:number};pendingDeposits:number;providers:{key:string;channel:string;enabled:boolean;maintenance:boolean;health:string;checkedAt:string|null}[];recentActivity:{action:string;subject_type:string;subject_id:string;created_at:string}[]};
+const usd=(n:number|string)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n);
 export default function AdminDashboard(){
  const [data,setData]=useState<Dashboard|null>(null),[error,setError]=useState("");
  const load=useCallback(async()=>{const r=await api<Dashboard>("GET","/v1/dashboard/admin");if(r.ok&&r.data){setData(r.data);setError("");}else setError(errorText(r));},[]);
