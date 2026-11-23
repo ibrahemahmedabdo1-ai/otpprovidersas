@@ -484,6 +484,27 @@ paths:
         "200": {description: OK}
         "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/deposits:
+    get:
+      tags: ["Support"]
+      summary: "Open top-up requests (requested or under review) for Support"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/deposits/{id}/submit:
+    post:
+      tags: ["Support"]
+      summary: "Support submits evidence notes so an administrator can review. Never credits or approves."
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: OK}
+        "400": {description: Validation failed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Only support staff, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "409": {description: Deposit not open, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/preferences:
     get:
       tags: ["Console"]

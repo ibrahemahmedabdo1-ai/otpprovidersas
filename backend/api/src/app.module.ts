@@ -26,6 +26,8 @@ import { WebhooksController } from "./webhooks/webhooks.controller";
 import { WebhooksService } from "./webhooks/webhooks.service";
 import { AdminStatsController, ConsoleStatsController } from "./stats/stats.controller";
 import { StatsService } from "./stats/stats.service";
+import { SupportDepositsController } from "./wallet/wallet.controller";
+import { SupportDepositsService } from "./wallet/support-deposits.service";
 import { AdminTranslationController, PreferencesController, SupportTranslationController } from "./translation/translation.controller";
 import { PreferencesService } from "./translation/preferences.service";
 import { TranslationService } from "./translation/translation.service";
@@ -34,9 +36,9 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController],
   providers: [
-    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService,
+    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService, SupportDepositsService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
