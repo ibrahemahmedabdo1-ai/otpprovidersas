@@ -25,7 +25,7 @@ export default function TopUps() {
     <>
       <div className="pagehead"><h1>Top-ups</h1><p>Guide the customer in the linked ticket, check their transfer evidence, then send it for administrator review. Support cannot approve or credit a balance.</p></div>
       {err && <Alert kind="error">{err}</Alert>}
-      {msg && <Alert kind="success">{msg}</Alert>}
+      {msg && <Alert kind="ok">{msg}</Alert>}
       {rows === null ? <Loading /> : rows.length === 0 ? <Empty title="No open top-ups" body="New requests appear here." /> : (
         <div className="tablewrap"><table>
           <thead><tr><th scope="col">Organization</th><th scope="col">Amount (USD)</th><th scope="col">Status</th><th scope="col">Requested</th><th scope="col">Ticket</th><th scope="col">Evidence note</th></tr></thead>
