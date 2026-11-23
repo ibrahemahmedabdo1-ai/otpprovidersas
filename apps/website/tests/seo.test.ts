@@ -10,7 +10,8 @@ import zh from "../src/i18n/zh.ts";
 const all = { en, ar, ru, es, de, zh } as const;
 type Tree = string | Tree[] | { [k: string]: Tree };
 const shape = (v: Tree): unknown => (typeof v === "string" ? "s" : Array.isArray(v) ? v.map(shape) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shape(x)])));
-const leaves = (v: Tree, out: string[] = []): string[] => { if (typeof v === "string") out.push(v); else if (Array.isArray(v)) v.forEach((x) => leaves(x, out)); else Object.values(v).forEach((x) => leaves(x, out)); return out; };
+// `warn` is an optional notice: an empty value means "show no notice" and is allowed.
+const leaves = (v: Tree, out: string[] = []): string[] => { if (typeof v === "string") out.push(v); else if (Array.isArray(v)) v.forEach((x) => leaves(x, out)); else Object.entries(v).forEach(([k, x]) => { if (k !== "warn") leaves(x, out); }); return out; };
 
 test("every locale has exactly the same structure as English (no missing or extra keys, same list lengths)", () => {
   for (const [name, d] of Object.entries(all)) assert.deepEqual(shape(d as Tree), shape(en as Tree), name);

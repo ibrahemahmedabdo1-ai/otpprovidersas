@@ -7,6 +7,11 @@ export interface TranslationProvider {
   readonly marks: Marks;
   translate(marked: string, target: Lang): Promise<ProviderResult>;
 }
+/** Minimal fetch shape. Declared here so the build does not depend on which DOM or Node typings happen to be installed. */
+export type HttpResponse = { ok: boolean; status: number; json(): Promise<unknown> };
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<HttpResponse>;
+const defaultFetch: FetchLike = (url, init) => (globalThis as unknown as { fetch: FetchLike }).fetch(url, init);
+
 export class ProviderError extends Error {
   constructor(readonly code: string) { super(code); }
 }
@@ -14,8 +19,8 @@ export class ProviderError extends Error {
 const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const xmlUnesc = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 
-async function post(url: string, init: RequestInit, f: typeof fetch, timeoutMs: number): Promise<Response> {
-  const ctl = new AbortController();
+async function post(url: string, init: { method: string; headers: Record<string, string>; body: string }, f: FetchLike, timeoutMs: number): Promise<HttpResponse> {
+  const ctl = new (globalThis as unknown as { AbortController: new () => { signal: AbortSignal; abort(): void } }).AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try { return await f(url, { ...init, signal: ctl.signal }); }
   catch (e) { throw new ProviderError((e as Error)?.name === "AbortError" ? "timeout" : "network"); }
@@ -26,7 +31,7 @@ const httpError = (status: number) => new ProviderError(status === 401 || status
 export class DeepLProvider implements TranslationProvider {
   readonly key = "deepl" as const;
   readonly marks: Marks = { esc: xmlEsc, unesc: xmlUnesc, mark: (i) => `<x>${i}</x>`, re: /<x>(\d+)<\/x>/g };
-  constructor(private readonly apiKey: string, private readonly f: typeof fetch = fetch, private readonly timeoutMs = 8000) {}
+  constructor(private readonly apiKey: string, private readonly f: FetchLike = defaultFetch, private readonly timeoutMs = 8000) {}
   private static target(l: Lang): string { return l === "en" ? "EN-US" : l === "zh" ? "ZH-HANS" : l.toUpperCase(); }
   async translate(marked: string, target: Lang): Promise<ProviderResult> {
     const host = this.apiKey.endsWith(":fx") ? "api-free.deepl.com" : "api.deepl.com";
@@ -46,7 +51,7 @@ export class DeepLProvider implements TranslationProvider {
 export class GoogleProvider implements TranslationProvider {
   readonly key = "google" as const;
   readonly marks: Marks = { esc: xmlEsc, unesc: xmlUnesc, mark: (i) => `<span translate="no">${i}</span>`, re: /<span translate="no">(\d+)<\/span>/g };
-  constructor(private readonly apiKey: string, private readonly f: typeof fetch = fetch, private readonly timeoutMs = 8000) {}
+  constructor(private readonly apiKey: string, private readonly f: FetchLike = defaultFetch, private readonly timeoutMs = 8000) {}
   async translate(marked: string, target: Lang): Promise<ProviderResult> {
     const res = await post("https://translation.googleapis.com/language/translate/v2", {
       method: "POST",
@@ -62,7 +67,7 @@ export class GoogleProvider implements TranslationProvider {
 }
 
 /** Builds the provider from server-side environment variables only. Returns null when none is configured. The key never leaves this process. */
-export function providerFromEnv(env: NodeJS.ProcessEnv, f: typeof fetch = fetch): TranslationProvider | null {
+export function providerFromEnv(env: NodeJS.ProcessEnv, f: FetchLike = defaultFetch): TranslationProvider | null {
   const key = env.TRANSLATION_API_KEY?.trim();
   if (!key) return null;
   const which = (env.TRANSLATION_PROVIDER ?? "").trim().toLowerCase();
