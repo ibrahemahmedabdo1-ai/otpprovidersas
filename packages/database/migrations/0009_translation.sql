@@ -7,7 +7,7 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS customer_language_source text;
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_customer_language_chk;
 ALTER TABLE tickets ADD CONSTRAINT tickets_customer_language_chk CHECK (
   (customer_language IS NULL AND customer_language_source IS NULL) OR
-  (customer_language IN ('ar','en','ru','es','de','zh') AND customer_language_source IN ('detected','override')));
+  (customer_language IS NOT NULL AND customer_language_source IS NOT NULL AND customer_language IN ('ar','en','ru','es','de','zh') AND customer_language_source IN ('detected','override')));
 
 -- Per-agent translation settings. 'allowed' is set by an Admin; 'enabled' and 'language' are the agent's own choice.
 CREATE TABLE IF NOT EXISTS user_translation_prefs (
