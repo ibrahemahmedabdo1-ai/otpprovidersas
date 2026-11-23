@@ -405,6 +405,103 @@ paths:
         "200": {description: OK}
         "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/translation:
+    get:
+      tags: ["Staff: support"]
+      summary: "Translation availability for the signed-in agent: provider configured, system switch, agent permission and language"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    patch:
+      tags: ["Staff: support"]
+      summary: "Agent sets own translation on/off and language (blocked if an Admin disallowed it)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/translation/tickets/{id}/settings:
+    post:
+      tags: ["Staff: support"]
+      summary: "Per-conversation translation on/off and customer language override"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/translation/tickets/{id}/translate:
+    post:
+      tags: ["Staff: support"]
+      summary: "Translate the customer messages of a ticket into the agent language. Idempotent; never re-translates; reports not_configured honestly"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/support/translation/tickets/{id}/reply:
+    post:
+      tags: ["Staff: support"]
+      summary: "Send a public reply, then store its translation for the customer. The reply is saved even if translation fails"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/translation:
+    get:
+      tags: ["Staff: admin"]
+      summary: "Translation management: provider status, usage, errors, per-agent permissions (Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+    patch:
+      tags: ["Staff: admin"]
+      summary: "Enable or disable translation, languages and daily character limit. Enabling needs a configured provider and data-sharing confirmation"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/translation/agents/{id}:
+    patch:
+      tags: ["Staff: admin"]
+      summary: "Allow or forbid a staff member from using translation"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/translation/test:
+    post:
+      tags: ["Staff: admin"]
+      summary: "Send a harmless test phrase to the real provider and report success or a short error code"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/preferences:
+    get:
+      tags: ["Console"]
+      summary: "Saved interface language of the signed-in user"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/preferences/locale:
+    put:
+      tags: ["Console"]
+      summary: "Save the signed-in user interface language (ar, en, ru, es, de, zh); persists across devices"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/console/wallet:
     get:
       tags: ["Console"]

@@ -66,12 +66,15 @@ export class TicketsService {
     const t = await this.db.pool.query("SELECT id, subject, status, priority, created_at, updated_at FROM tickets WHERE id = $1::uuid AND organization_id = $2::uuid", [id, org]);
     if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
     const m = await this.db.pool.query(
-      `SELECT m.id, m.body, m.created_at, m.author_id = $2::uuid AS mine FROM messages m JOIN conversations c ON c.id = m.conversation_id
+      `SELECT m.id, m.body, m.created_at, m.author_id = $2::uuid AS mine, mt.body AS translation
+       FROM messages m JOIN conversations c ON c.id = m.conversation_id
+       LEFT JOIN LATERAL (SELECT x.body FROM message_translations x WHERE x.message_id = m.id
+         AND x.target_lang = COALESCE((SELECT customer_language FROM tickets WHERE id = c.ticket_id), (SELECT locale FROM users WHERE id = $2::uuid))) mt ON m.author_id <> $2::uuid
        WHERE c.ticket_id = $1::uuid AND m.internal = false ORDER BY m.created_at, m.id`, [id, ctx.userId]);
     const x = t.rows[0];
     return {
       ticket: { id: x.id as string, subject: x.subject as string, status: x.status as string, priority: x.priority as string, createdAt: x.created_at, updatedAt: x.updated_at },
-      messages: m.rows.map((r) => ({ id: r.id as string, from: (r.mine as boolean) ? "you" : "support", body: r.body as string, createdAt: r.created_at })),
+      messages: m.rows.map((r) => ({ id: r.id as string, from: (r.mine as boolean) ? "you" : "support", body: (r.translation as string | null) ?? (r.body as string), original: r.translation ? (r.body as string) : null, translated: Boolean(r.translation), createdAt: r.created_at })),
     };
   }
 
@@ -106,16 +109,21 @@ export class TicketsService {
     this.staff(ctx);
     const id = this.id(ticketId);
     const t = await this.db.pool.query(
-      `SELECT t.id, t.subject, t.status, t.priority, t.created_at, t.updated_at, u.email AS requester, a.email AS assignee
+      `SELECT t.id, t.subject, t.status, t.priority, t.created_at, t.updated_at, u.email AS requester, a.email AS assignee,
+              t.translation_enabled, t.customer_language, t.customer_language_source
        FROM tickets t JOIN users u ON u.id = t.created_by LEFT JOIN users a ON a.id = t.assignee_id WHERE t.id = $1::uuid`, [id]);
     if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
     const m = await this.db.pool.query(
-      `SELECT m.id, m.body, m.internal, m.created_at, u.email AS author FROM messages m JOIN conversations c ON c.id = m.conversation_id JOIN users u ON u.id = m.author_id
-       WHERE c.ticket_id = $1::uuid ORDER BY m.created_at, m.id`, [id]);
+      `SELECT m.id, m.body, m.internal, m.created_at, u.email AS author, mt.body AS translation, mt.target_lang AS translation_lang
+       FROM messages m JOIN conversations c ON c.id = m.conversation_id JOIN users u ON u.id = m.author_id
+       LEFT JOIN LATERAL (SELECT x.body, x.target_lang FROM message_translations x WHERE x.message_id = m.id
+         AND x.target_lang = COALESCE((SELECT p.language FROM user_translation_prefs p WHERE p.user_id = $2::uuid), (SELECT locale FROM users WHERE id = $2::uuid))) mt ON true
+       WHERE c.ticket_id = $1::uuid ORDER BY m.created_at, m.id`, [id, ctx.userId]);
     const x = t.rows[0];
     return {
-      ticket: { id: x.id as string, subject: x.subject as string, status: x.status as string, priority: x.priority as string, requester: x.requester as string, assignee: (x.assignee as string | null) ?? null, createdAt: x.created_at, updatedAt: x.updated_at },
-      messages: m.rows.map((r) => ({ id: r.id as string, kind: (r.internal as boolean) ? "internal" : "public", author: r.author as string, body: r.body as string, createdAt: r.created_at })),
+      ticket: { id: x.id as string, subject: x.subject as string, status: x.status as string, priority: x.priority as string, requester: x.requester as string, assignee: (x.assignee as string | null) ?? null, createdAt: x.created_at, updatedAt: x.updated_at,
+        translationEnabled: x.translation_enabled as boolean, customerLanguage: (x.customer_language as string | null) ?? null, customerLanguageSource: (x.customer_language_source as string | null) ?? null },
+      messages: m.rows.map((r) => ({ id: r.id as string, kind: (r.internal as boolean) ? "internal" : "public", author: r.author as string, body: r.body as string, translation: (r.translation as string | null) ?? null, translationLang: (r.translation_lang as string | null) ?? null, createdAt: r.created_at })),
     };
   }
 
@@ -129,11 +137,11 @@ export class TicketsService {
       if (!t.rows[0]) throw new NotFoundException({ error: "not_found" });
       if (t.rows[0].status === "closed") throw new ConflictException({ error: "ticket_closed" });
       const conv = await c.query("SELECT id FROM conversations WHERE ticket_id = $1::uuid LIMIT 1", [id]);
-      await c.query("INSERT INTO messages(conversation_id, author_id, reply_identity, internal, body) VALUES ($1::uuid, $2::uuid, $3::text, $4::boolean, $5::text)", [conv.rows[0].id, ctx.userId, identity, internal, message]);
+      const ins = await c.query("INSERT INTO messages(conversation_id, author_id, reply_identity, internal, body) VALUES ($1::uuid, $2::uuid, $3::text, $4::boolean, $5::text) RETURNING id", [conv.rows[0].id, ctx.userId, identity, internal, message]);
       if (!internal) await c.query("UPDATE tickets SET status = CASE WHEN status = 'open' THEN 'pending_customer' ELSE status END WHERE id = $1::uuid", [id]);
       else await c.query("UPDATE tickets SET updated_at = now() WHERE id = $1::uuid", [id]);
       await writeAudit(c, { actorId: ctx.userId, action: internal ? "ticket.internal_note" : "ticket.staff_reply", subjectType: "ticket", subjectId: id, ip: cleanIp(ip) });
-      return { ok: true };
+      return { ok: true, id: ins.rows[0].id as string };
     });
   }
 
