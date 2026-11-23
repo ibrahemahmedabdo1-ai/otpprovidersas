@@ -50,7 +50,7 @@ function Bars({ data }: { data: Stats["daily"] }) {
 }
 
 export default function Overview() {
-  const { user } = useApp();
+  const { user, t } = useApp();
   const [s, setS] = useState<Stats | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -65,41 +65,41 @@ export default function Overview() {
 
   return (
     <>
-      <div className="pagehead"><h1>Overview</h1><p>Every figure is calculated from the live database when you open this page. Nothing is estimated.</p></div>
+      <div className="pagehead"><h1>{t("ov.title")}</h1><p>{t("ov.sub")}</p></div>
       {err && <Alert>{err}</Alert>}
       {!s && !err && <Loading />}
       {s && (
         <>
-          <h2>Customers</h2>
+          <h2>{t("ov.customers")}</h2>
           <div className="grid">
-            <Stat label="Total customers" value={s.customers.total} />
-            <Stat label="Active" value={s.customers.active} />
-            <Stat label="Email not verified" value={s.customers.pendingEmailVerification} />
-            <Stat label="Organizations awaiting review" value={s.customers.pendingOrganizationReview} tone={s.customers.pendingOrganizationReview > 0 ? "warn" : undefined} />
-            <Stat label="Suspended" value={s.customers.suspended} />
+            <Stat label={t("ov.totalCustomers")} value={s.customers.total} />
+            <Stat label={t("ov.active")} value={s.customers.active} />
+            <Stat label={t("ov.emailUnverified")} value={s.customers.pendingEmailVerification} />
+            <Stat label={t("ov.orgReview")} value={s.customers.pendingOrganizationReview} tone={s.customers.pendingOrganizationReview > 0 ? "warn" : undefined} />
+            <Stat label={t("ov.suspended")} value={s.customers.suspended} />
           </div>
 
-          <h2>Money</h2>
+          <h2>{t("ov.money")}</h2>
           <div className="grid">
-            <Stat label="Pending deposits" value={s.pendingDeposits.count} hint={usd(s.pendingDeposits.amountUsd) + " waiting for a decision"} tone={s.pendingDeposits.count > 0 ? "warn" : undefined} />
-            <Stat label="Deposits credited, 30 days" value={usd(s.money.depositsUsd30d)} />
-            <Stat label="Usage revenue, 30 days" value={usd(s.money.usageRevenueUsd30d)} hint="Confirmed deliveries, net of refunds" />
-            <Stat label="Usage revenue, all time" value={usd(s.money.usageRevenueUsdAllTime)} />
-            <Stat label="Wallet liabilities" value={usd(s.money.walletLiabilitiesPaidUsd)} hint={`Paid balances. Promotional credit: ${usd(s.money.walletLiabilitiesPromoUsd)}`} />
+            <Stat label={t("ov.pendingDeposits")} value={s.pendingDeposits.count} hint={usd(s.pendingDeposits.amountUsd) + " waiting for a decision"} tone={s.pendingDeposits.count > 0 ? "warn" : undefined} />
+            <Stat label={t("ov.deposits30")} value={usd(s.money.depositsUsd30d)} />
+            <Stat label={t("ov.usage30")} value={usd(s.money.usageRevenueUsd30d)} hint="Confirmed deliveries, net of refunds" />
+            <Stat label={t("ov.usageAll")} value={usd(s.money.usageRevenueUsdAllTime)} />
+            <Stat label={t("ov.liabilities")} value={usd(s.money.walletLiabilitiesPaidUsd)} hint={`Paid balances. Promotional credit: ${usd(s.money.walletLiabilitiesPromoUsd)}`} />
           </div>
 
-          <h2>OTP traffic, last {s.periodDays} days</h2>
+          <h2>{t("ov.traffic", { n: s.periodDays })}</h2>
           <div className="grid">
-            <Stat label="Live requests" value={s.otp.requests} />
-            <Stat label="Delivered" value={s.otp.delivered} />
-            <Stat label="Failed" value={s.otp.failed} tone={s.otp.failed > 0 ? "warn" : undefined} />
+            <Stat label={t("ov.liveRequests")} value={s.otp.requests} />
+            <Stat label={t("ov.delivered")} value={s.otp.delivered} />
+            <Stat label={t("ov.failed")} value={s.otp.failed} tone={s.otp.failed > 0 ? "warn" : undefined} />
             {s.otp.channels.map((c) => <Stat key={c.channel} label={`${c.channel === "email" ? "Email" : "WhatsApp"} delivery rate`} value={c.deliveryRatePct === null ? "No data" : `${c.deliveryRatePct}%`} hint={`${c.delivered} delivered of ${c.requests} requests`} />)}
           </div>
           <div className="card"><Bars data={s.daily} /><p className="hint">Grey: requests. Green: confirmed deliveries.</p></div>
 
-          <h2>Providers and devices</h2>
+          <h2>{t("ov.providers")}</h2>
           <div className="grid">
-            <Stat label="WhatsApp devices" value={s.whatsappDevices.total} hint={`${s.whatsappDevices.connected} connected, ${s.whatsappDevices.routingEligible} routing-eligible`} tone={s.whatsappDevices.total > 0 && s.whatsappDevices.routingEligible === 0 ? "warn" : undefined} />
+            <Stat label={t("ov.devices")} value={s.whatsappDevices.total} hint={`${s.whatsappDevices.connected} connected, ${s.whatsappDevices.routingEligible} routing-eligible`} tone={s.whatsappDevices.total > 0 && s.whatsappDevices.routingEligible === 0 ? "warn" : undefined} />
             {s.providers.map((p) => {
               const state = !p.enabled ? "Disabled" : p.maintenance ? "Maintenance" : p.health === "unknown" ? "No health data" : p.health[0]!.toUpperCase() + p.health.slice(1);
               const tone = !p.enabled || p.health === "healthy" ? undefined : p.health === "down" ? "bad" : "warn";
@@ -107,15 +107,15 @@ export default function Overview() {
             })}
           </div>
 
-          <h2>Support</h2>
+          <h2>{t("ov.support")}</h2>
           <div className="grid">
-            <Stat label="Open tickets" value={s.tickets.open} />
-            <Stat label="Escalated" value={s.tickets.escalated} tone={s.tickets.escalated > 0 ? "warn" : undefined} />
-            <Stat label="Waiting for customer" value={s.tickets.pendingCustomer} />
-            <Stat label="Open incidents" value={s.openIncidents} tone={s.openIncidents > 0 ? "bad" : undefined} />
+            <Stat label={t("ov.openTickets")} value={s.tickets.open} />
+            <Stat label={t("ov.escalated")} value={s.tickets.escalated} tone={s.tickets.escalated > 0 ? "warn" : undefined} />
+            <Stat label={t("ov.waitingCustomer")} value={s.tickets.pendingCustomer} />
+            <Stat label={t("ov.incidents")} value={s.openIncidents} tone={s.openIncidents > 0 ? "bad" : undefined} />
           </div>
 
-          <h2>Shortcuts</h2>
+          <h2>{t("ov.shortcuts")}</h2>
           <div className="grid">
             <Link className="card" href="/deposits"><h3>Deposits</h3><p className="muted">Approve only after independently confirming the funds arrived.</p></Link>
             <Link className="card" href="/tickets"><h3>Tickets</h3><p className="muted">Escalated and open conversations.</p></Link>
