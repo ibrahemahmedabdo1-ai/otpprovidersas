@@ -4,7 +4,7 @@ import type { AuthContext } from "../auth/auth.service";
 import { isUuid, parseDisplayName, parseEmail, parsePassword } from "../auth/validators";
 import { hashPassword } from "../auth/password";
 import { writeAudit } from "../common/audit";
-import { buildPublicPricing } from "./public-pricing";
+import { applyPublicDeliveryGates, buildPublicPricing } from "./public-pricing";
 import { parseCouponInput } from "./coupons";
 
 const bad = (fields: Record<string, string>): never => { throw new BadRequestException({ error: "validation_failed", fields }); };
@@ -154,7 +154,7 @@ export class CatalogService {
       this.db.pool.query("SELECT channel, country, unit_price_micro_usd AS micro FROM prices WHERE status='active'"),
       this.db.pool.query("SELECT channel, bool_or(enabled AND NOT maintenance) AS live FROM providers GROUP BY channel"),
     ]);
-    return buildPublicPricing(pr.rows, pv.rows);
+    return buildPublicPricing(pr.rows, applyPublicDeliveryGates(pv.rows));
   }
   async setCompany(c: AuthContext, body: unknown, ip: string | null) {
     this.sup(c); const b = obj(body);
