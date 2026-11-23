@@ -8,12 +8,6 @@ export type PublicPricing = {
   countries: { code: string; email: string | null; whatsapp: string | null }[];
 };
 
-/**
- * Builds the public table from approved prices and provider state only.
- * A channel is advertised only when its live delivery path is actually enabled.
- * WhatsApp remains unavailable until customer sending and delivery-receipt billing
- * are implemented in the live delivery service; a database price alone is not availability.
- */
 /** Keep WhatsApp hidden until the live send path and delivery-receipt billing are implemented. */
 export function applyPublicDeliveryGates(providers: ChannelLive[]): ChannelLive[] {
   return providers.map((provider) => provider.channel === "whatsapp" ? { ...provider, live: false } : provider);
