@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { blockedReason, normalizeLang, parseSettings, resolveTargetLang, withinDailyLimit } from "./core";
-import { DeepLProvider, GoogleProvider, ProviderError, providerFromEnv } from "./providers";
+import { type FetchLike, DeepLProvider, GoogleProvider, ProviderError, providerFromEnv } from "./providers";
 import { hasTranslatableText, restore, segment, toMarked } from "./protect";
 
+const res = (body: string, status: number) => ({ ok: status >= 200 && status < 300, status, json: async () => JSON.parse(body) as unknown });
 const MARKS = { esc: (s: string) => s, mark: (i: number) => `<x>${i}</x>`, re: /<x>(\d+)<\/x>/g, unesc: (s: string) => s };
 const keepsOf = (t: string) => segment(t).filter((s) => s.keep).map((s) => s.v);
 
@@ -89,30 +90,30 @@ test("the daily character limit is inclusive", () => {
 });
 
 test("DeepL: key goes in the header only, markers are ignored tags, detection is mapped", async () => {
-  let seen: { url: string; init: RequestInit } | null = null;
-  const f = (async (url: string, init: RequestInit) => { seen = { url, init }; return new Response(JSON.stringify({ translations: [{ text: "Hola <x>0</x>", detected_source_language: "EN" }] }), { status: 200 }); }) as unknown as typeof fetch;
+  let seen: { url: string; init: { method: string; headers: Record<string, string>; body: string } } | null = null;
+  const f: FetchLike = async (url, init) => { seen = { url, init }; return res(JSON.stringify({ translations: [{ text: "Hola <x>0</x>", detected_source_language: "EN" }] }), 200); };
   const r = await new DeepLProvider("secret-key:fx", f).translate("Hello <x>0</x>", "es");
   assert.deepEqual(r, { text: "Hola <x>0</x>", detected: "en" });
-  const s = seen as unknown as { url: string; init: RequestInit };
+  const s = seen as unknown as { url: string; init: { headers: Record<string, string>; body: string } };
   assert.ok(s.url.startsWith("https://api-free.deepl.com/"));
   assert.ok(!String(s.init.body).includes("secret-key"));
-  assert.match(String((s.init.headers as Record<string, string>).authorization), /secret-key/);
+  assert.match(String(s.init.headers.authorization), /secret-key/);
   assert.match(String(s.init.body), /"ignore_tags":\["x"\]/);
 });
 
 test("provider failures become short codes that never contain the key", async () => {
-  const f401 = (async () => new Response("denied secret-key", { status: 401 })) as unknown as typeof fetch;
+  const f401: FetchLike = async () => res("{}", 401);
   await assert.rejects(new GoogleProvider("secret-key", f401).translate("hi", "ar"), (e: unknown) => e instanceof ProviderError && e.code === "provider_auth" && !e.message.includes("secret"));
-  const f429 = (async () => new Response("", { status: 429 })) as unknown as typeof fetch;
+  const f429: FetchLike = async () => res("{}", 429);
   await assert.rejects(new DeepLProvider("k", f429).translate("hi", "ar"), (e: unknown) => e instanceof ProviderError && e.code === "provider_rate_limited");
-  const fnet = (async () => { throw new Error("boom secret-key"); }) as unknown as typeof fetch;
+  const fnet: FetchLike = async () => { throw new Error("boom secret-key"); };
   await assert.rejects(new DeepLProvider("k", fnet).translate("hi", "ar"), (e: unknown) => e instanceof ProviderError && e.code === "network" && !e.message.includes("secret"));
 });
 
 test("without a key or a known provider name, translation is reported as not configured", () => {
   assert.equal(providerFromEnv({}), null);
-  assert.equal(providerFromEnv({ TRANSLATION_PROVIDER: "deepl" } as NodeJS.ProcessEnv), null);
-  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k" } as NodeJS.ProcessEnv), null);
-  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "other" } as NodeJS.ProcessEnv), null);
-  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "google" } as NodeJS.ProcessEnv)?.key, "google");
+  assert.equal(providerFromEnv({ TRANSLATION_PROVIDER: "deepl" }), null);
+  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k" }), null);
+  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "other" }), null);
+  assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "google" })?.key, "google");
 });
