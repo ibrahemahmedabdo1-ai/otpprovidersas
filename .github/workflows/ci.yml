@@ -153,6 +153,8 @@ jobs:
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/deposits.test.sql
       - name: Coupon tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/coupons.test.sql
+      - name: Linked deposit SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/support/linked-deposits.test.sql
       - name: Translation SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/translation/translation.test.sql
       - name: Admin approvals and MFA SQL tests

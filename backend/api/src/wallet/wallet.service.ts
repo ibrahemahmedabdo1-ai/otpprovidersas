@@ -64,8 +64,16 @@ export class WalletService {
       return await this.db.tx(async (c) => {
         const r = await c.query("SELECT request_deposit($1::uuid, $2::bigint, $3::text) AS id", [w.id, amount.value.toString(), note]);
         const id = r.rows[0].id as string;
-        await writeAudit(c, { actorId: ctx.userId, action: "deposit.request", subjectType: "deposit", subjectId: id, ip: cleanIp(ip), meta: { amountMicroUsd: amount.value.toString() } });
-        return { id, status: "requested", amountUsd: microToUsd(amount.value), message: "Request recorded. Contact Support to receive manual payment instructions. Your balance is credited only after an administrator confirms the funds have arrived." };
+        // Linked support ticket so the customer talks to Support about this request in one place.
+        const amountText = microToUsd(amount.value);
+        const t = await c.query("INSERT INTO tickets(organization_id, created_by, subject, priority) VALUES ($1::uuid, $2::uuid, $3::text, 'high') RETURNING id", [orgId, ctx.userId, "Wallet top-up " + id.slice(0, 8).toUpperCase()]);
+        const ticketId = t.rows[0].id as string;
+        const conv = await c.query("INSERT INTO conversations(ticket_id, organization_id) VALUES ($1::uuid, $2::uuid) RETURNING id", [ticketId, orgId]);
+        await c.query("INSERT INTO messages(conversation_id, author_id, reply_identity, internal, body) VALUES ($1::uuid, $2::uuid, 'self', false, $3::text)",
+          [conv.rows[0].id, ctx.userId, "I would like to top up $" + amountText + " USD." + (note ? "\nDetails: " + note : "")]);
+        await c.query("UPDATE deposits SET ticket_id = $2::uuid WHERE id = $1::uuid", [id, ticketId]);
+        await writeAudit(c, { actorId: ctx.userId, action: "deposit.request", subjectType: "deposit", subjectId: id, ip: cleanIp(ip), meta: { amountMicroUsd: amount.value.toString(), ticketId } });
+        return { id, ticketId, status: "requested", amountUsd: amountText, message: "Request recorded. Contact Support to receive manual payment instructions. Your balance is credited only after an administrator confirms the funds have arrived." };
       });
     } catch (e) {
       if ((e as Error).message === "too_many_open_deposits") throw new HttpException({ error: "too_many_open_deposits" }, HttpStatus.TOO_MANY_REQUESTS);
