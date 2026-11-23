@@ -1,0 +1,36 @@
+name: WhatsApp gateway keep-alive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: whatsapp-gateway-keepalive
+  cancel-in-progress: true
+
+jobs:
+  health-ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Wake and verify WhatsApp gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://whatsapp-linked-device-gateway-production.up.railway.app/health"
+          for attempt in {1..10}; do
+            response="$(curl --silent --show-error --max-time 15 --output /tmp/gateway-health.json --write-out '%{http_code}' "$url" || true)"
+            if [ "$response" = "200" ] && grep -q '"ready":true' /tmp/gateway-health.json; then
+              echo "WhatsApp gateway is healthy."
+              exit 0
+            fi
+            echo "Gateway not ready yet (HTTP ${response:-no-response}); retry ${attempt}/10."
+            sleep 5
+          done
+          echo "WhatsApp gateway did not become healthy."
+          cat /tmp/gateway-health.json 2>/dev/null || true
+          exit 1
