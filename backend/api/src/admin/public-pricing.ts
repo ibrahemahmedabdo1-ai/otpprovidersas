@@ -14,6 +14,11 @@ export type PublicPricing = {
  * WhatsApp remains unavailable until customer sending and delivery-receipt billing
  * are implemented in the live delivery service; a database price alone is not availability.
  */
+/** Keep WhatsApp hidden until the live send path and delivery-receipt billing are implemented. */
+export function applyPublicDeliveryGates(providers: ChannelLive[]): ChannelLive[] {
+  return providers.map((provider) => provider.channel === "whatsapp" ? { ...provider, live: false } : provider);
+}
+
 export function buildPublicPricing(prices: PriceRow[], providers: ChannelLive[]): PublicPricing {
   const live = (ch: string) => providers.some((p) => p.channel === ch && p.live);
   const m = new Map<string, string>();
