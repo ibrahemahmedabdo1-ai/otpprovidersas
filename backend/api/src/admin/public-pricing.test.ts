@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPublicPricing } from "./public-pricing";
+import { applyPublicDeliveryGates, buildPublicPricing } from "./public-pricing";
 
 const prices = [
   { channel: "email", country: "*", micro: "20000" },
@@ -9,39 +9,36 @@ const prices = [
   { channel: "whatsapp", country: "SA", micro: "95000" },
 ];
 
-test("email price applies to every country when an email provider is live", () => {
-  const r = buildPublicPricing(prices, [{ channel: "email", live: true }, { channel: "whatsapp", live: false }]);
+test("email price applies to every sellable country when its provider is live", () => {
+  const providers = applyPublicDeliveryGates([{ channel: "email", live: true }, { channel: "whatsapp", live: true }]);
+  const r = buildPublicPricing(prices, providers);
   assert.ok(r.countries.length > 150);
-  assert.ok(r.countries.every((c) => c.email === "20000" && c.whatsapp !== null));
+  assert.ok(r.countries.every((c) => c.email === "20000" && c.whatsapp === null));
+  assert.deepEqual(r.channels, { email: true, whatsapp: false });
 });
 
-test("whatsapp is available in every country: own price, else the approved default, in the right column", () => {
-  const r = buildPublicPricing(prices, [{ channel: "email", live: true }, { channel: "whatsapp", live: false }]);
-  const get = (c: string) => r.countries.find((x) => x.code === c)!;
-  assert.equal(get("EG").whatsapp, "100000");
-  assert.equal(get("EG").email, "20000");
-  assert.equal(get("SA").whatsapp, "95000");
-  assert.equal(get("FR").whatsapp, "45000", "approved default applies");
-  assert.ok(r.countries.every((c) => c.whatsapp !== null));
+test("WhatsApp stays hidden even when its database provider is enabled and prices exist", () => {
+  const providers = applyPublicDeliveryGates([{ channel: "email", live: true }, { channel: "whatsapp", live: true }]);
+  const r = buildPublicPricing(prices, providers);
+  assert.equal(r.channels.whatsapp, false);
+  assert.ok(r.countries.every((country) => country.whatsapp === null));
 });
 
-test("whatsapp without any approved price is not available (nothing invented)", () => {
-  const r = buildPublicPricing([{ channel: "email", country: "*", micro: "20000" }], [{ channel: "email", live: true }]);
-  assert.ok(r.countries.every((c) => c.whatsapp === null));
-});
-
-test("email without a live provider is hidden; whatsapp stays listed", () => {
-  const r = buildPublicPricing(prices, [{ channel: "email", live: false }, { channel: "whatsapp", live: false }]);
-  assert.ok(r.countries.every((c) => c.email === null && c.whatsapp !== null));
-  assert.deepEqual(r.channels, { email: false, whatsapp: true });
+test("email without a live provider is hidden and WhatsApp remains unavailable", () => {
+  const providers = applyPublicDeliveryGates([{ channel: "email", live: false }, { channel: "whatsapp", live: true }]);
+  const r = buildPublicPricing(prices, providers);
+  assert.ok(r.countries.every((country) => country.email === null && country.whatsapp === null));
+  assert.deepEqual(r.channels, { email: false, whatsapp: false });
 });
 
 test("no price is exposed for a channel with no approved price", () => {
-  const r = buildPublicPricing([], [{ channel: "email", live: true }]);
+  const providers = applyPublicDeliveryGates([{ channel: "email", live: true }]);
+  const r = buildPublicPricing([], providers);
   assert.equal(r.countries.length, 0);
 });
 
 test("sanctioned and uninhabited territories are not listed", () => {
-  const r = buildPublicPricing(prices, [{ channel: "email", live: true }]);
+  const providers = applyPublicDeliveryGates([{ channel: "email", live: true }]);
+  const r = buildPublicPricing(prices, providers);
   for (const code of ["KP", "IR", "SY", "CU", "AQ"]) assert.ok(!r.countries.some((c) => c.code === code), code);
 });
