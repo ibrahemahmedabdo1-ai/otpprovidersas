@@ -37,5 +37,5 @@ test("support cannot post to a ticket assigned to another staff member", async (
     (error: { getStatus?: () => number }) => error.getStatus?.() === 404,
   );
   assert.equal(calls.length, 1);
-  assert.match(calls[0], /assignee_id IS NULL OR assignee_id = \$3::uuid/);
+  assert.match(calls[0] ?? "", /assignee_id IS NULL OR assignee_id = \$3::uuid/);
 });
