@@ -33,5 +33,5 @@ test("support cannot submit evidence for another agent's assigned top-up", async
     (error: { getStatus?: () => number }) => error.getStatus?.() === 404,
   );
   assert.equal(calls.length, 2);
-  assert.match(calls[1], /assignee_id IS NULL OR assignee_id = \$2::uuid/);
+  assert.match(calls[1] ?? "", /assignee_id IS NULL OR assignee_id = \$2::uuid/);
 });
