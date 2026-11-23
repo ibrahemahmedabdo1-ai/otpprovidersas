@@ -4,7 +4,7 @@ const en = {
   nav: { products: "Products", developers: "Developers", pricing: "Pricing", security: "Security", legal: "Legal" },
   meta: {
     home: { title: "OTPProvider: Email and WhatsApp OTP API for developers", description: "Send and verify one-time codes over Email and WhatsApp with a simple REST API, a prepaid USD wallet and an immutable ledger. Sandbox available now." },
-    products: { title: "Email OTP and WhatsApp OTP products | OTPProvider", description: "Email OTP through a verified sending domain, and WhatsApp OTP through a QR-paired linked device with channel controls and connection-status visibility." },
+    products: { title: "Email OTP and WhatsApp OTP | OTPProvider", description: "Simple, reliable verification codes through Email and WhatsApp, managed from one dashboard." },
     developers: { title: "OTP API quickstart: send and verify codes | OTPProvider", description: "Create a test API key, send a code with POST /v1/otp/send, verify it with POST /v1/otp/verify, and use Idempotency-Key safely." },
     pricing: { title: "Pricing and billing model | OTPProvider", description: "Prepaid USD wallet, billing only on confirmed delivery, manual deposits verified by an administrator. Rates are published once configured." },
     security: { title: "Security controls | OTPProvider", description: "Argon2id passwords, hashed API keys, an append-only ledger, mandatory staff MFA, brute-force lockout and audited admin actions." },
@@ -31,10 +31,10 @@ const en = {
     ],
   },
   products: {
-    h1: "Two channels, described honestly",
+    h1: "Verification made simple",
     intro: "OTPProvider supports exactly two services.",
     email: { t: "Email OTP", d: "Codes delivered through a verified sending domain with delivery events fed back into billing.", points: ["Delivery, bounce and complaint events are tracked", "Suppression list protects your sender reputation", "Billed only on confirmed delivery"] },
-    wa: { t: "WhatsApp OTP", d: "OTP codes are sent through a WhatsApp device linked by scanning a QR code. Channel settings are managed in the Admin dashboard after the device is paired and its connection is tested.", points: ["Pair a WhatsApp device with a QR code", "Manage channel activation for each project in Admin", "Monitor connection status and reconnect the device when needed"], warn: "Ongoing sending depends on device connectivity, WhatsApp account status and platform policies. The system displays request status based on the events available from the linked-device connection, with Email available as a fallback for critical flows." },
+    wa: { t: "WhatsApp OTP", d: "Send verification codes directly through WhatsApp and manage your service easily from your OTPProvider dashboard.", points: ["Easy QR device connection", "Centralized device management", "Simple channel controls from your dashboard"], warn: "" },
   },
   developers: {
     h1: "Quickstart", intro: "Create a project in the console, then create a test key. Test keys start with otp_test_ and never send real messages.",
