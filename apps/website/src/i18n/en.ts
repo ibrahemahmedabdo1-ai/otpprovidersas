@@ -4,7 +4,7 @@ const en = {
   nav: { products: "Products", developers: "Developers", pricing: "Pricing", security: "Security", legal: "Legal" },
   meta: {
     home: { title: "OTPProvider: Email and WhatsApp OTP API for developers", description: "Send and verify one-time codes over Email and WhatsApp with a simple REST API, a prepaid USD wallet and an immutable ledger. Sandbox available now." },
-    products: { title: "Email OTP and WhatsApp OTP products | OTPProvider", description: "Email OTP through a verified sending domain, and WhatsApp OTP in QR-linked-device mode with clearly stated limits and risks." },
+    products: { title: "Email OTP and WhatsApp OTP | OTPProvider", description: "Simple, reliable verification codes through Email and WhatsApp, managed from one dashboard." },
     developers: { title: "OTP API quickstart: send and verify codes | OTPProvider", description: "Create a test API key, send a code with POST /v1/otp/send, verify it with POST /v1/otp/verify, and use Idempotency-Key safely." },
     pricing: { title: "Pricing and billing model | OTPProvider", description: "Prepaid USD wallet, billing only on confirmed delivery, manual deposits verified by an administrator. Rates are published once configured." },
     security: { title: "Security controls | OTPProvider", description: "Argon2id passwords, hashed API keys, an append-only ledger, mandatory staff MFA, brute-force lockout and audited admin actions." },
@@ -25,16 +25,16 @@ const en = {
     faqTitle: "Straight answers",
     faq: [
       { q: "Can I send real messages today?", a: "Not yet. The sandbox works end to end without sending anything or billing you. Live sending is switched on only after provider setup and review." },
-      { q: "Is WhatsApp delivery guaranteed?", a: "No. WhatsApp OTP runs in QR-linked-device mode, which can be limited or banned by WhatsApp and has no delivery guarantee. Use Email OTP where reliability matters." },
+      { q: "How does WhatsApp OTP work?", a: "OTP codes are sent through a WhatsApp device linked by scanning a QR code. The channel is managed from the Admin dashboard and can be enabled for a project after the device is paired and its connection is tested. Continued availability depends on the device staying connected, account status and WhatsApp policies; Email is available as a fallback for critical flows." },
       { q: "How am I billed?", a: "From a prepaid USD wallet, and only when delivery is confirmed. Rates are set by the platform administrator." },
       { q: "Who can change my balance?", a: "Only an administrator, after independently verifying that your payment arrived. Support staff cannot approve deposits or edit balances." },
     ],
   },
   products: {
-    h1: "Two channels, described honestly",
+    h1: "Verification made simple",
     intro: "OTPProvider supports exactly two services.",
     email: { t: "Email OTP", d: "Codes delivered through a verified sending domain with delivery events fed back into billing.", points: ["Delivery, bounce and complaint events are tracked", "Suppression list protects your sender reputation", "Billed only on confirmed delivery"] },
-    wa: { t: "WhatsApp OTP", d: "Delivered through a linked WhatsApp device (QR pairing). It is isolated from any future official provider.", points: ["Disabled by default for every project", "No delivery guarantee", "Subject to WhatsApp rate limits and account restrictions"], warn: "WhatsApp delivery depends on WhatsApp's own policies and rate limits. Use Email OTP as the primary channel for critical flows." },
+    wa: { t: "WhatsApp OTP", d: "Send verification codes directly through WhatsApp and manage your service easily from your OTPProvider dashboard.", points: ["Easy QR device connection", "Centralized device management", "Simple channel controls from your dashboard"], warn: "" },
   },
   developers: {
     h1: "Quickstart", intro: "Create a project in the console, then create a test key. Test keys start with otp_test_ and never send real messages.",

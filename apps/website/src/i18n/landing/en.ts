@@ -27,7 +27,7 @@ const en = {
     unit: "wallet top-up", custom: "Custom", popular: "Most popular",
     items: [
       { name: "Starter", blurb: "For trying things out and small apps.", features: ["Test keys and sandbox", "Email OTP", "Pay as you go from your wallet", "Support tickets"], cta: "Get started" },
-      { name: "Growth", blurb: "For products with real sign-up traffic.", features: ["Everything in Starter", "Signed webhooks", "WhatsApp OTP, enabled after review", "Usage and wallet dashboard"], cta: "Get started" },
+      { name: "Growth", blurb: "For products with real sign-up traffic.", features: ["Everything in Starter", "Signed webhooks", "WhatsApp OTP after device pairing, connection test and project activation", "Usage and wallet dashboard"], cta: "Get started" },
       { name: "Enterprise", blurb: "For high volume and custom needs.", features: ["Custom volumes", "Rates agreed in writing", "Dedicated onboarding", "Security review support"], cta: "Contact us" },
     ],
     note: "Credit is added after an administrator verifies your payment. Per-message rates are shown in the console.",
@@ -54,7 +54,7 @@ const en = {
   faqTitle: "Straight answers",
   faq: [
     { q: "Can I send real messages today?", a: "You can test everything in the sandbox now, without sending anything or being billed. Live sending is enabled per account after setup and review." },
-    { q: "Which channels are supported?", a: "Email OTP and WhatsApp OTP. Email is the default channel; WhatsApp is enabled per project after review." },
+    { q: "Which channels are supported, and how does WhatsApp work?", a: "We support Email OTP and WhatsApp OTP. WhatsApp uses a device linked by scanning a QR code, with channel settings managed in the Admin dashboard. WhatsApp is enabled for a project after device pairing and a connection test. Ongoing sending depends on device connectivity, account status and WhatsApp policies." },
     { q: "How am I billed?", a: "From a prepaid USD wallet, and only when delivery is confirmed. Rates are set by the platform administrator." },
     { q: "Who can change my balance?", a: "Only an administrator, after independently verifying that your payment arrived. Support staff cannot approve deposits or edit balances." },
   ],
