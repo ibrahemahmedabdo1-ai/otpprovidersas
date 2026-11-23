@@ -34,7 +34,7 @@ export default async function Products({ params }: P) {
           <article className="card">
             <h2>{t.products.wa.t}</h2><p>{t.products.wa.d}</p>
             <ul>{t.products.wa.points.map((p) => <li key={p}>{p}</li>)}</ul>
-            <p className="warn" role="note">{t.products.wa.warn}</p>
+            {t.products.wa.warn.trim() !== "" && <p className="warn" role="note">{t.products.wa.warn}</p>}
           </article>
         </div>
       </div>
