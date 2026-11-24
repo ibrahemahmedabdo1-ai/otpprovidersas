@@ -14,6 +14,8 @@ async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
+await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),recipient_hash text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
+await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_msg_idx ON wa_message_receipts(message_id)`;
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_kv(k text PRIMARY KEY,v jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now())`;
 function decodeJson(v:any):any{
  if(v==null)return v;
@@ -99,6 +101,21 @@ async function start(id:string){
   if(update&&typeof update==="object")Object.assign(a.state.creds,update);
   a.save().catch((err:any)=>{console.error("AUTH_PERSIST_FAILED");if(generations.get(id)===token)live.set(id,{state:"error",qr:null,error:"auth_persist_failed"});});
  });
+ sock.ev.on("messages.update",(items:any[])=>{
+  if(generations.get(id)!==token)return;
+  for(const it of items||[]){
+   const st=RECEIPT_STATUS[Number(it?.update?.status)];
+   if(it?.key?.fromMe&&it?.key?.id&&st)void recordReceipt(id,String(it.key.id),st,String(it.key.remoteJid||""));
+  }
+ });
+ sock.ev.on("message-receipt.update",(items:any[])=>{
+  if(generations.get(id)!==token)return;
+  for(const it of items||[]){
+   const r=it?.receipt||{};
+   if(it?.key?.fromMe&&it?.key?.id&&r.receiptTimestamp)void recordReceipt(id,String(it.key.id),"delivered",String(it.key.remoteJid||""));
+   if(it?.key?.fromMe&&it?.key?.id&&r.readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||""));
+  }
+ });
  sock.ev.on("connection.update",async(u:any)=>{
   if(generations.get(id)!==token||sockets.get(id)!==sock)return;
   try{
@@ -148,6 +165,12 @@ async function start(id:string){
  starts.set(id,task);
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
+const RECEIPT_STATUS:Record<number,string>={2:"server_ack",3:"delivered",4:"read",5:"played"};
+async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string){
+ if(!messageId||!status)return;
+ const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
+ await sql`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash) VALUES(${deviceId}::uuid,${messageId},${status},${h}) ON CONFLICT(device_id,message_id,status) DO NOTHING`.catch(()=>{console.error("RECEIPT_PERSIST_FAILED")});
+}
 const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
  if(req.method==="GET"&&(p==="/"||p==="/health"))return json({ok:true,service:"otp-whatsapp-gateway",devices:sockets.size,ready:initialized});
@@ -159,6 +182,7 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
   if(req.method==="GET"&&p===base+"/qr.png"){const id=u.searchParams.get("deviceId")||"";const r=await sql`SELECT state,qr_data_url FROM wa_gateway_devices WHERE id=${id}::uuid`.catch(()=>[]);if(!r.length)return json({error:"not_found"},404);const data=String(r[0].qr_data_url||"");if(r[0].state!=="pairing"||!data.startsWith("data:image/png;base64,"))return json({error:"qr_not_available",state:r[0].state},409);const bytes=Buffer.from(data.slice("data:image/png;base64,".length),"base64");return new Response(bytes,{headers:{"content-type":"image/png","cache-control":"no-store, no-cache, must-revalidate","x-content-type-options":"nosniff","content-length":String(bytes.length)}})}
  }
  if(!auth(req))return json({error:"unauthorized"},401);
+ if(req.method==="GET"&&p==="/admin/receipts"){const mid=String(u.searchParams.get("messageId")||"");if(!/^[A-Za-z0-9]{8,64}$/.test(mid))return json({error:"invalid_message_id"},400);return json(await sql`SELECT status,created_at FROM wa_message_receipts WHERE message_id=${mid} ORDER BY id`)}
  if(req.method==="GET"&&p==="/admin/devices")return json(await sql`SELECT id,label,state,routing_eligible,priority,last_activity_at,last_error,created_at FROM whatsapp_devices WHERE provider_id=${providerId}::uuid ORDER BY created_at`);
  if(req.method==="POST"&&p==="/admin/devices"){const b=await req.json().catch(()=>({})),label=String(b.label||"").trim();if(label.length<2||label.length>80)return json({error:"invalid_label"},400);const d=await sql`INSERT INTO wa_gateway_devices(label) VALUES(${label}) RETURNING id,label,state,created_at`;await sql`INSERT INTO whatsapp_devices(id,provider_id,label,state,routing_eligible) VALUES(${d[0].id}::uuid,${providerId}::uuid,${label},'disconnected',false) ON CONFLICT(id) DO NOTHING`;await start(String(d[0].id));return json(d[0],201)}
  const m=p.match(/^\/admin\/devices\/([0-9a-f-]{36})(?:\/(qr|reconnect))?$/i);
@@ -166,7 +190,7 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  if(req.method==="POST"&&m[2]==="reconnect"){await start(id);return json({ok:true,state:"starting"},202)}
  if(req.method==="PATCH"&&!m[2]){const b=await req.json().catch(()=>({})),label=String(b.label||"").trim();if(label.length<2||label.length>80)return json({error:"invalid_label"},400);const changed=await sql`UPDATE wa_gateway_devices SET label=${label} WHERE id=${id}::uuid RETURNING id,label,state`;if(!changed.length)return json({error:"not_found"},404);await sql`UPDATE whatsapp_devices SET label=${label},updated_at=now() WHERE id=${id}::uuid`;return json(changed[0])}
  if(req.method==="DELETE"&&!m[2]){const s=sockets.get(id);if(s){try{await s.logout()}catch{}try{s.end(undefined)}catch{}}sockets.delete(id);live.delete(id);if(timers.has(id))clearTimeout(timers.get(id));await sql`DELETE FROM wa_gateway_kv WHERE k LIKE ${id+":%"}`;await sql`DELETE FROM wa_gateway_devices WHERE id=${id}::uuid`;await sql`DELETE FROM whatsapp_devices WHERE id=${id}::uuid`;return json({ok:true})}}
- if(req.method==="POST"&&p==="/admin/test-send"){if(E.WA_ADMIN_TEST_SEND_ENABLED!=="true")return json({error:"admin_test_sending_disabled"},423);const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);const r=await s.sendMessage(to+"@s.whatsapp.net",{text:msg});return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202)}
+ if(req.method==="POST"&&p==="/admin/test-send"){if(E.WA_ADMIN_TEST_SEND_ENABLED!=="true")return json({error:"admin_test_sending_disabled"},423);const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);const r=await s.sendMessage(to+"@s.whatsapp.net",{text:msg});if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202)}
  if(req.method==="POST"&&p==="/v1/send"){if(E.WA_CUSTOMER_SEND_ENABLED!=="true")return json({error:"customer_sending_disabled"},423);return json({error:"delivery_receipt_reconciliation_not_enabled"},503)}
  return json({error:"not_found"},404);
 }});
