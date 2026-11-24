@@ -265,6 +265,34 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  return json({error:"not_found"},404);
 }});
 console.log("OTPProvider WhatsApp gateway listening on",server.port);
+const OTP_API_BASE_URL=(E.OTP_API_BASE_URL||"").replace(/\/+$/,"");
+const OTP_CRON_SECRET=E.OTP_CRON_SECRET||"";
+let otpTickInFlight=false;
+async function runOtpBackgroundTick(){
+ if(!OTP_API_BASE_URL||OTP_CRON_SECRET.length<24){console.error("OTP_BACKGROUND_RUN_CONFIG_MISSING");return;}
+ if(otpTickInFlight)return;
+ otpTickInFlight=true;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),50000);
+ try{
+  const response=await fetch(OTP_API_BASE_URL+"/v1/internal/tick",{
+   method:"POST",
+   headers:{"content-type":"application/json","x-cron-secret":OTP_CRON_SECRET},
+   body:"{}",
+   signal:controller.signal
+  });
+  if(!response.ok)console.error("OTP_BACKGROUND_RUN_FAILED",JSON.stringify({status:response.status}));
+  else console.log("OTP_BACKGROUND_RUN_OK");
+ }catch{
+  console.error("OTP_BACKGROUND_RUN_FAILED",JSON.stringify({reason:"request_error"}));
+ }finally{
+  clearTimeout(timeout);
+  otpTickInFlight=false;
+ }
+}
+setTimeout(()=>void runOtpBackgroundTick(),15000);
+setInterval(()=>void runOtpBackgroundTick(),60000);
+
 async function acquireAndInit(){
  if(!ownsLock){
   const result=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton')) AS acquired`;
