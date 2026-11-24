@@ -30,7 +30,7 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly db: DbService, @Inject(CONFIG) private readonly cfg: AppConfig) {}
 
   onModuleInit() {
-    if (process.env.NODE_ENV === "test" || process.env.SCHEDULER_DISABLED === "1") return;
+    if (process.env.NODE_ENV === "test" || process.env.SCHEDULER_DISABLED === "1" || process.env.VERCEL === "1") return;
     this.timer = setInterval(() => { void this.deliverDue(); }, 15_000);
     this.timer.unref();
   }
