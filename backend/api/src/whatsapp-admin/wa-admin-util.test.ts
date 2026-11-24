@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isMessageId, isUuid, maskRecipient, normalizeRecipient, parseAllowlist, validTestMessage } from "./wa-admin-util";
+import { isMessageId, isRecipientAllowlisted, isUuid, maskRecipient, normalizeRecipient, parseAllowlist, validTestMessage } from "./wa-admin-util";
 
 test("recipient is digits only, 8-15 long", () => {
   assert.equal(normalizeRecipient("+20 127 979 7964"), "201279797964");
@@ -23,4 +23,10 @@ test("ids are validated before being sent to the gateway", () => {
   assert.equal(isUuid("../x"), false);
   assert.equal(isMessageId("3EB0ABCDEF123456"), true);
   assert.equal(isMessageId("a/b"), false);
+});
+
+test("test-send allow-list fails closed when empty", () => {
+  assert.equal(isRecipientAllowlisted("201279797964", []), false);
+  assert.equal(isRecipientAllowlisted("201279797964", ["201279797964"]), true);
+  assert.equal(isRecipientAllowlisted("201279797964", ["966500000000"]), false);
 });
