@@ -242,7 +242,7 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
   const b=await req.json().catch(()=>({}));
   const to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),deliveryId=String(b.deliveryId||""),requestId=String(b.requestId||""),msg=String(b.message||"").trim();
   if(!/^\d{8,15}$/.test(to)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deliveryId)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)||!msg||msg.length>500)return json({error:"invalid_request"},400);
-  const eligible=await sql`SELECT d.id FROM whatsapp_devices d JOIN otp_deliveries od ON od.id=${deliveryId}::uuid JOIN otp_requests r ON r.id=od.otp_request_id WHERE d.id=${id}::uuid AND d.provider_id=${providerId}::uuid AND d.state='connected' AND d.routing_eligible=true AND r.id=${requestId}::uuid AND r.channel='whatsapp' AND od.status IN ('queued','unknown') LIMIT 1`;
+  const eligible=await sql`SELECT d.id FROM whatsapp_devices d JOIN otp_deliveries od ON od.id=${deliveryId}::uuid JOIN otp_requests r ON r.id=od.otp_request_id WHERE d.id=${id}::uuid AND d.provider_id=${providerId}::uuid AND od.provider_id=${providerId}::uuid AND d.state='connected' AND d.routing_eligible=true AND r.id=${requestId}::uuid AND r.channel='whatsapp' AND od.status IN ('queued','unknown') LIMIT 1`;
   if(!eligible.length)return json({error:"delivery_or_device_not_eligible"},409);
   const s=sockets.get(id);
   if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
