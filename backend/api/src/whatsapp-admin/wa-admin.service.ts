@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, ServiceUnavailableException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, ServiceUnavailableException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { DbService } from "../db.service";
 import type { AuthContext } from "../auth/auth.service";
 import { writeAudit } from "../common/audit";
@@ -81,7 +81,34 @@ export class WhatsAppAdminService {
     this.staff(ctx);
     const r = await this.gateway("/admin/devices", "GET");
     if (r.status !== 200 || !Array.isArray(r.data)) throw new ServiceUnavailableException({ error: "gateway_error", status: r.status });
-    return (r.data as Array<Record<string, unknown>>).map((d) => ({ id: d.id, label: d.label, state: d.state, lastActivityAt: d.last_activity_at ?? null }));
+    return (r.data as Array<Record<string, unknown>>).map((d) => ({ id: d.id, label: d.label, state: d.state, routingEligible: d.routing_eligible === true, lastActivityAt: d.last_activity_at ?? null }));
+  }
+
+  /** Only the Super Admin can explicitly mark a connected linked device eligible for customer routing. */
+  async setRouting(ctx: AuthContext, deviceId: string, body: unknown, ip?: string) {
+    if (ctx.role !== "super_admin") throw new ForbiddenException({ error: "forbidden" });
+    if (!isUuid(deviceId)) throw new BadRequestException({ error: "validation_failed" });
+    const b = (body ?? {}) as Record<string, unknown>;
+    if (typeof b.enabled !== "boolean") throw new BadRequestException({ error: "validation_failed" });
+    return this.db.tx(async (c) => {
+      const current = await c.query("SELECT id,state,routing_eligible FROM whatsapp_devices WHERE id=$1::uuid FOR UPDATE", [deviceId]);
+      const row = current.rows[0];
+      if (!row) throw new NotFoundException({ error: "not_found" });
+      if (b.enabled && row.state !== "connected") throw new ConflictException({ error: "device_not_connected" });
+      const updated = await c.query(
+        "UPDATE whatsapp_devices SET routing_eligible=$2::boolean,updated_at=now() WHERE id=$1::uuid RETURNING id,state,routing_eligible",
+        [deviceId,b.enabled]
+      );
+      await writeAudit(c, {
+        actorId: ctx.userId,
+        action: b.enabled ? "admin.whatsapp_routing_enabled" : "admin.whatsapp_routing_disabled",
+        subjectType: "whatsapp_device",
+        subjectId: deviceId,
+        ip: cleanIp(ip),
+        meta: { previous: row.routing_eligible === true, enabled: b.enabled, state: row.state },
+      });
+      return { id: updated.rows[0].id, state: updated.rows[0].state, routingEligible: updated.rows[0].routing_eligible };
+    });
   }
 
   async testSend(ctx: AuthContext, body: unknown, ip?: string) {
