@@ -281,6 +281,52 @@ export class LiveOtpDeliveryService {
       });
       if (changed) reconciled++;
     }
+    // Release unresolved WhatsApp reservations after a provider error has had a short
+    // out-of-order receipt grace window, or after the OTP request itself has expired.
+    // Explicit delivered receipts are reconciled first and always take precedence.
+    const failures = await this.db.pool.query(
+      `SELECT d.id AS delivery_id,r.id AS request_id,r.wallet_id,r.expires_at,p.unit_price_micro_usd,
+              e.id AS receipt_id,e.status AS receipt_status,e.created_at AS receipt_at
+       FROM otp_deliveries d
+       JOIN otp_requests r ON r.id=d.otp_request_id
+       LEFT JOIN prices p ON p.id=d.price_id
+       LEFT JOIN LATERAL (
+         SELECT id,status,created_at FROM wa_message_receipts
+         WHERE otp_delivery_id=d.id AND status='error'
+         ORDER BY created_at DESC LIMIT 1
+       ) e ON true
+       WHERE r.channel='whatsapp' AND d.status IN ('queued','submitted','unknown')
+         AND ((e.id IS NOT NULL AND e.created_at <= now()-interval '2 minutes')
+              OR r.expires_at <= now()-interval '2 minutes')
+         AND NOT EXISTS (
+           SELECT 1 FROM wa_message_receipts delivered
+           WHERE delivered.otp_delivery_id=d.id AND delivered.status='delivered'
+         )
+       ORDER BY d.created_at ASC LIMIT 100`
+    );
+    for (const failure of failures.rows) {
+      const released = await this.db.tx(async (c) => {
+        const found = await c.query(
+          `SELECT d.id,d.status,r.id AS request_id,r.wallet_id,r.project_id,r.expires_at,p.unit_price_micro_usd
+           FROM otp_deliveries d JOIN otp_requests r ON r.id=d.otp_request_id
+           LEFT JOIN prices p ON p.id=d.price_id WHERE d.id=$1 FOR UPDATE OF d,r`,
+          [failure.delivery_id]
+        );
+        const row = found.rows[0];
+        if (!row || ["failed","delivered"].includes(String(row.status))) return false;
+        if (row.unit_price_micro_usd === null || row.unit_price_micro_usd === undefined) return false;
+        const expired = new Date(row.expires_at).getTime() <= Date.now();
+        await c.query(
+          "UPDATE otp_deliveries SET status='failed',evidence=COALESCE(evidence,'{}'::jsonb)||$2::jsonb,updated_at=now() WHERE id=$1",
+          [row.id,json({whatsappFailure:{receiptId:failure.receipt_id??null,receiptStatus:failure.receipt_status??null,receiptAt:failure.receipt_at??null,reason:expired?"request_expired":"provider_error",source:"wa_message_receipts_or_expiry"}})]
+        );
+        await c.query("SELECT release_failed_delivery($1,$2,$3)",[row.wallet_id,row.id,row.unit_price_micro_usd]);
+        await c.query("UPDATE otp_requests SET status=$2,last_sent_at=NULL WHERE id=$1",[row.request_id,expired?"expired":"failed"]);
+        await enqueueWebhookEvent(c,String(row.project_id),"otp.failed",{otpRequestId:row.request_id,channel:"whatsapp",mode:"live"});
+        return true;
+      });
+      if (released) reconciled++;
+    }
     return reconciled;
   }
 
