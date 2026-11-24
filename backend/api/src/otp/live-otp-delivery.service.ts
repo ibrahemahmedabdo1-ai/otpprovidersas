@@ -11,6 +11,7 @@ import { enqueueWebhookEvent } from "../webhooks/webhooks.service";
 import { writeAudit } from "../common/audit";
 import { parseIdempotencyKey } from "./recipient";
 import { classifyResendEvent } from "./resend-webhook-rules";
+import { isBillableWhatsAppReceipt } from "./whatsapp-receipt-rules";
 
 type LiveSendInput = { channel: "email" | "whatsapp"; to: string; locale: string };
 const json = (value: unknown) => JSON.stringify(value);
@@ -254,10 +255,11 @@ export class LiveOtpDeliveryService {
    * ledger function make this safe when the background tick is retried or runs concurrently. */
   async reconcileWhatsAppReceipts(): Promise<number> {
     const receipts = await this.db.pool.query(
-      "SELECT DISTINCT ON (otp_delivery_id) otp_delivery_id,id,message_id,device_id,created_at FROM wa_message_receipts WHERE otp_delivery_id IS NOT NULL AND status='delivered' ORDER BY otp_delivery_id,created_at ASC LIMIT 100"
+      "SELECT DISTINCT ON (otp_delivery_id) otp_delivery_id,id,message_id,device_id,status,created_at FROM wa_message_receipts WHERE otp_delivery_id IS NOT NULL AND status='delivered' ORDER BY otp_delivery_id,created_at ASC LIMIT 100"
     );
     let reconciled = 0;
     for (const receipt of receipts.rows) {
+      if (!isBillableWhatsAppReceipt(String(receipt.status))) continue;
       const changed = await this.db.tx(async (c) => {
         const found = await c.query(
           `SELECT d.id,d.status,d.billed,r.id AS request_id,r.wallet_id,r.project_id,p.unit_price_micro_usd
