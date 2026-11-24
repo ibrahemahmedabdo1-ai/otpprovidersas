@@ -265,7 +265,7 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  return json({error:"not_found"},404);
 }});
 console.log("OTPProvider WhatsApp gateway listening on",server.port);
-const OTP_API_BASE_URL=(E.OTP_API_BASE_URL||"").replace(/\\/+$/,"");
+const OTP_API_BASE_URL=(E.OTP_API_BASE_URL||"").replace(/\/+$/,"");
 const OTP_CRON_SECRET=E.OTP_CRON_SECRET||"";
 let otpTickInFlight=false;
 async function runOtpBackgroundTick(){
