@@ -35,11 +35,10 @@ import { PreferencesService } from "./translation/preferences.service";
 import { TranslationService } from "./translation/translation.service";
 import { DbService } from "./db.service";
 import { HealthController } from "./health.controller";
-import { InternalCronController } from "./internal-cron.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, InternalCronController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController, WhatsAppAdminController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController, WhatsAppAdminController],
   providers: [
     DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService, SupportDepositsService, WhatsAppAdminService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
