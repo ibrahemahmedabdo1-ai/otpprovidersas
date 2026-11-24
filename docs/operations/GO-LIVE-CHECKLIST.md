@@ -1,48 +1,63 @@
 # Go-live checklist
 
-Status values: PASS, FAIL, BLOCKED, NOT TESTED. Update with evidence (date, commit, deployment id) before launch. Never paste secret values here.
+Status values: PASS, FAIL, BLOCKED, NOT TESTED. Update with dated evidence before launch. Never paste secret values here.
 
 ## Launch scope (Email OTP only)
-WhatsApp is linked to a personal QR device until a provider contract exists. Customer WhatsApp sending stays disabled
-(`WA_CUSTOMER_SEND_ENABLED=false`, `/v1/send` answers 423 / `delivery_receipt_reconciliation_not_enabled`). Public pages hide WhatsApp pricing.
-Do not enable it by flipping a flag: it needs verified delivery receipts, reconciliation and charge-after-receipt billing end to end.
+- Email is the only candidate customer channel for the first controlled launch.
+- WhatsApp is connected to a personal QR-linked device. A real Admin test message reached the allow-listed phone and produced `accepted`, `delivered`, and `server_ack` receipt records. This validates the Admin test path only.
+- WhatsApp customer sending remains blocked in the gateway/API; provider is disabled and the device is not routing-eligible. There is no receipt-to-`otp_deliveries` association or customer billing reconciliation. Do not enable it by flipping a flag.
+- The Starter Credit $4.99 package exists in production but is inactive and not commercially approved.
 
-## Owner actions (cannot be done by Claude)
-- [ ] Rotate the Super Admin password (it was pasted in chat once) and enrol MFA for every staff account.
-- [ ] Confirm `RESEND_WEBHOOK_SECRET` in the API project equals the secret of the enabled Resend webhook (compare in the dashboards; do not paste either).
-- [ ] Fix DKIM for `otpprovider.com` in DNS (currently `failed`) or keep sending only from the verified `mail.otpprovider.com`.
-- [ ] Enable Resend Receiving if inbound Mail Center is wanted (currently disabled on both domains).
-- [ ] Set `TRANSLATION_PROVIDER` / `TRANSLATION_API_KEY` if auto-translation is wanted (off by default).
-- [ ] Confirm CORS allows `https://www.otpprovider.com`.
-- [ ] Android: run `scripts/make-android-keystores.sh` and add the signing secrets to GitHub Actions.
+## Owner actions
+- [ ] Rotate the Super Admin password that was previously exposed in chat.
+- [ ] Complete MFA enrollment for every staff account. Latest database count: Super Admin 2/2 enrolled; Admin staff 0/1; Support staff 1/2.
+- [ ] Confirm `RESEND_WEBHOOK_SECRET` equals the secret of the enabled Resend webhook. A recent delivered-event callback returned HTTP 200, but older attempts returned 401 invalid_signature; compare values in dashboards without copying them into chat.
+- [ ] Keep email sending on the verified `mail.otpprovider.com` domain. The apex `otpprovider.com` Resend domain is failed; it is not the configured sender.
+- [ ] Keep Resend Receiving disabled unless inbound Mail Center is implemented and intentionally enabled.
+- [ ] Set translation provider credentials only if automatic translation is part of launch scope.
+- [ ] Confirm the owner can sign in to website, Admin, Customer Console, and Support in production.
+- [ ] Android release signing: run `scripts/make-android-keystores.sh` and configure GitHub Actions signing secrets before Play Store releases.
 
-## Deploy (Vercel is rate limited for ~24h on the free tier; do not retry in a loop)
-- [ ] After the limit resets, deploy the same `main` commit to all five projects (website, API, admin, console, support).
-- [ ] Record commit + deployment id per project in the matrix below.
+## Deploy and production smoke checks
+Vercel currently reports deployment rate-limit failures (retry after the limit resets). Do not repeatedly trigger builds. The current `main` commit `9cbe312` has successful GitHub CI, but its five Vercel status checks failed due to the platform build-rate limit. Previously deployed production versions remain READY on earlier commits.
+
+- [ ] After the Vercel limit resets, deploy the approved `main` commit to all five projects (website, API, Admin, Customer Console, Support).
+- [ ] Record the exact deployed commit and deployment ID for every project.
 - [ ] `GET /health/ready` returns 200 with `database: up`.
-- [ ] `GET /v1/public/pricing` returns the approved Email price; no WhatsApp price is shown.
-- [ ] Each UI loads, CSS/JS assets return 200, no console errors.
+- [ ] `GET /v1/public/pricing` returns the approved Email price and does not expose WhatsApp as live.
+- [ ] Verify each UI on its custom domain; CSS/JS assets return 200 and browser console has no runtime errors.
 
-| Project | Commit | Deployment | Status |
-|---|---|---|---|
-| API | | | NOT TESTED |
-| Website | | | NOT TESTED |
-| Admin | | | NOT TESTED |
-| Console | | | NOT TESTED |
-| Support | | | NOT TESTED |
-
-## Workflows (real, with an authorised test mailbox)
-| # | Workflow | Status |
+| Project | Custom domain | Latest confirmed production deployment |
 |---|---|---|
-| 1 | Register, verify email, log in, MFA | NOT TESTED |
-| 2 | Deposit request creates linked ticket | NOT TESTED in production (SQL tested in CI) |
-| 3 | Support submits evidence; support cannot credit | PASS in CI (SQL); NOT TESTED in production |
-| 4 | Admin approves; wallet credited exactly once | PASS in CI (SQL); NOT TESTED in production |
-| 5 | Email OTP request, real receipt, correct code verifies | NOT TESTED |
-| 6 | Resend `delivered` webhook records delivery and charges once | NOT TESTED (code reviewed: signed, timing-safe, idempotent) |
-| 7 | Bounced/failed email releases the reservation, no charge | NOT TESTED |
-| 8 | Customer isolation (balance, deposits, tickets, keys) | NOT TESTED |
-| 9 | WhatsApp device health | BLOCKED (no Railway access from this environment) |
-| 10 | WhatsApp customer send | NOT ENABLED by design |
-| 11 | Mail Center inbound | NOT IMPLEMENTED (Receiving disabled) |
-| 12 | Backup restore drill on a Neon branch | NOT TESTED |
+| Website | `www.otpprovider.com` | READY on an earlier commit |
+| API | `otpprovider-launch-api.vercel.app` | READY on an earlier commit |
+| Admin | `admin.otpprovider.com` | READY on an earlier commit |
+| Customer Console | `console.otpprovider.com` | READY on an earlier commit |
+| Support | `support.otpprovider.com` | READY on an earlier commit |
+
+Custom domains for Website, Admin, Customer Console, and Support are verified in Vercel. No custom API subdomain is configured.
+
+## Production workflows
+
+| # | Workflow | Latest status |
+|---|---|---|
+| 1 | Register, verify email, sign in, enroll MFA | NOT TESTED end-to-end in production |
+| 2 | Deposit request creates linked ticket | Migration and SQL path exist; production UI flow NOT TESTED |
+| 3 | Support submits evidence; Support cannot credit | SQL/permission tests exist; production UI flow NOT TESTED |
+| 4 | Admin approves; wallet credited exactly once | SQL/permission tests exist; production UI flow NOT TESTED |
+| 5 | Real Email OTP request, delivered callback, correct code verifies | NOT TESTED in production; no production `otp_deliveries` exist yet |
+| 6 | Resend delivered webhook charges exactly once | Latest webhook callback succeeded (HTTP 200); full OTP-linked billing NOT TESTED |
+| 7 | Bounced/failed email releases reservation without charge | NOT TESTED with a real provider callback |
+| 8 | Customer isolation for balances, deposits, tickets, and API keys | Automated coverage exists; production acceptance test NOT TESTED |
+| 9 | WhatsApp device health and Admin test receipt | PASS for the Admin test path only |
+| 10 | WhatsApp customer send and charge after receipt | BLOCKED; not implemented end-to-end and intentionally disabled |
+| 11 | Inbound Mail Center | NOT IMPLEMENTED; Receiving disabled |
+| 12 | Backup restore drill | NOT TESTED; Neon has no snapshots or snapshot schedule, and the application backups registry is empty |
+
+## Database and billing invariants checked 2026-11-24
+- [x] Production migrations 0001 through 0010 are recorded.
+- [x] Wallet reconciliation reports zero wallet/ledger mismatches.
+- [x] No negative wallet discrepancy was found in the latest reconciliation.
+- [x] WhatsApp provider and device routing remain disabled.
+- [ ] Test an actual OTP delivery and verify one charge, duplicate-event idempotency, and a matching ledger entry before opening Email OTP to general traffic.
+- [ ] Test a restore from a real backup before relying on disaster recovery.

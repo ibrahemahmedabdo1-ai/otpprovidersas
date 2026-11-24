@@ -10,6 +10,7 @@ import { sha256 } from "../auth/tokens";
 import { enqueueWebhookEvent } from "../webhooks/webhooks.service";
 import { writeAudit } from "../common/audit";
 import { parseIdempotencyKey } from "./recipient";
+import { classifyResendEvent } from "./resend-webhook-rules";
 
 type LiveSendInput = { channel: "email" | "whatsapp"; to: string; locale: string };
 const json = (value: unknown) => JSON.stringify(value);
@@ -161,7 +162,8 @@ export class LiveOtpDeliveryService {
     try { event = JSON.parse(rawBody.toString("utf8")); } catch { throw new HttpException({ error: "invalid_payload" }, HttpStatus.BAD_REQUEST); }
     const type = safeString(event?.type), messageId = safeString(event?.data?.email_id);
     if (!messageId) return { ok: true, ignored: true };
-    if (type !== "email.delivered" && type !== "email.bounced" && type !== "email.failed" && type !== "email.complained") return { ok: true, ignored: true };
+    const outcome = classifyResendEvent(type);
+    if (outcome === "ignored") return { ok: true, ignored: true };
     await this.db.tx(async (c) => {
       const found = await c.query(
         `SELECT d.id,d.status,d.billed,r.id AS request_id,r.wallet_id,p.unit_price_micro_usd
@@ -169,14 +171,32 @@ export class LiveOtpDeliveryService {
          WHERE d.provider_message_id=$1 FOR UPDATE OF d,r`, [messageId]);
       const row = found.rows[0];
       if (!row || row.status === "delivered" || row.status === "failed") return;
-      if (type === "email.delivered" || type === "email.complained") {
-        await c.query("UPDATE otp_deliveries SET status='delivered',evidence=$2::jsonb,updated_at=now() WHERE id=$1", [row.id, json({ eventId: safeString(event.id), type, createdAt: event.created_at })]);
+
+      // A complaint is an abuse/reputation signal, not proof of delivery.
+      // Keep the delivery unresolved and the reserved funds untouched until
+      // the explicit email.delivered event arrives.
+      if (outcome === "complaint") {
+        await c.query(
+          "UPDATE otp_deliveries SET evidence=COALESCE(evidence,'{}'::jsonb) || $2::jsonb,updated_at=now() WHERE id=$1",
+          [row.id, json({ complaint: { eventId: safeString(event.id), type, createdAt: event.created_at } })]
+        );
+        return;
+      }
+
+      if (outcome === "delivered") {
+        await c.query(
+          "UPDATE otp_deliveries SET status='delivered',evidence=COALESCE(evidence,'{}'::jsonb) || $2::jsonb,updated_at=now() WHERE id=$1",
+          [row.id, json({ delivery: { eventId: safeString(event.id), type, createdAt: event.created_at } })]
+        );
         await c.query("SELECT charge_confirmed_delivery($1,$2,$3)", [row.wallet_id, row.id, row.unit_price_micro_usd]);
         await c.query("UPDATE otp_requests SET status='sent',last_sent_at=now() WHERE id=$1", [row.request_id]);
         const project = await c.query("SELECT project_id FROM otp_requests WHERE id=$1", [row.request_id]);
         await enqueueWebhookEvent(c, project.rows[0].project_id, "otp.delivered", { otpRequestId: row.request_id, channel: "email", mode: "live" });
       } else {
-        await c.query("UPDATE otp_deliveries SET status='failed',evidence=$2::jsonb,updated_at=now() WHERE id=$1", [row.id, json({ eventId: safeString(event.id), type })]);
+        await c.query(
+          "UPDATE otp_deliveries SET status='failed',evidence=COALESCE(evidence,'{}'::jsonb) || $2::jsonb,updated_at=now() WHERE id=$1",
+          [row.id, json({ failure: { eventId: safeString(event.id), type } })]
+        );
         await c.query("SELECT release_failed_delivery($1,$2,$3)", [row.wallet_id, row.id, row.unit_price_micro_usd]);
         await c.query("UPDATE otp_requests SET status='failed' WHERE id=$1", [row.request_id]);
       }
