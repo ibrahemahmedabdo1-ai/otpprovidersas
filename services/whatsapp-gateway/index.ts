@@ -67,7 +67,7 @@ async function authState(id:string){
   await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(creds))}::jsonb WHERE id=${id}::uuid`;
  }
  const keys={
-  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(typeof r.v!=="string"||!r.v.startsWith("enc:v1:"))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(v))}::jsonb,updated_at=now() WHERE k=${r.k}`;if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.fromObject(v);out[key]=v;}return out},
+  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(typeof r.v!=="string"||!r.v.startsWith("enc:v1:"))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(v))}::jsonb,updated_at=now() WHERE k=${r.k}`;if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
   async set(data:any){await sql.begin(async tx=>{for(const [type,entries] of Object.entries(data) as any)for(const [k,v] of Object.entries(entries) as any){const key=id+":"+type+":"+k;if(v==null)await tx`DELETE FROM wa_gateway_kv WHERE k=${key}`;else await tx`INSERT INTO wa_gateway_kv(k,v,updated_at) VALUES(${key},${JSON.stringify(await encryptJson(v))}::jsonb,now()) ON CONFLICT(k) DO UPDATE SET v=EXCLUDED.v,updated_at=now()`;}})}
  };
  let saveQueue=Promise.resolve();
@@ -195,17 +195,39 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
   const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);
   if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);
   if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
+
+  const pnJid=to+"@s.whatsapp.net";
+  let recipientJid=pnJid;
+  try {
+    const lookup=await s.onWhatsApp(to);
+    if(!Array.isArray(lookup)||!lookup.some((item:any)=>item?.exists))return json({error:"recipient_not_registered_on_whatsapp"},422);
+    const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+    if(typeof mapped==="string"&&mapped.endsWith("@lid"))recipientJid=mapped;
+  } catch(err:any) {
+    console.error("WHATSAPP_RECIPIENT_LOOKUP_FAILED");
+    return json({error:"whatsapp_recipient_lookup_failed"},502);
+  }
+
   let r:any;
   try {
-    r=await s.sendMessage(to+"@s.whatsapp.net",{text:msg});
+    r=await s.sendMessage(recipientJid,{text:msg});
   } catch(err:any) {
     const reason=String(err?.message||"");
     if(reason.includes("No open session")) {
-      console.error("WHATSAPP_SIGNAL_SESSION_NOT_OPEN");
-      return json({error:"signal_session_not_open",note:"WhatsApp could not establish an encryption session for this recipient. The linked device credentials were not reset; inspect the Signal session and retry after recovery."},502);
+      try {
+        const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+        const targets=[pnJid,recipientJid,...(typeof mapped==="string"?[mapped]:[])];
+        await s.signalRepository.deleteSession([...new Set(targets)]);
+        console.warn("WHATSAPP_RECIPIENT_SIGNAL_SESSION_REFRESHED");
+        r=await s.sendMessage(typeof mapped==="string"?mapped:recipientJid,{text:msg});
+      } catch(refreshError:any) {
+        console.error("WHATSAPP_RECIPIENT_SIGNAL_SESSION_REFRESH_FAILED");
+        return json({error:"signal_session_refresh_failed",note:"A targeted refresh of the recipient Signal session was attempted once. Linked-device credentials and pairing data were preserved."},502);
+      }
+    } else {
+      console.error("WHATSAPP_TEST_SEND_FAILED");
+      return json({error:"whatsapp_test_send_failed"},502);
     }
-    console.error("WHATSAPP_TEST_SEND_FAILED");
-    return json({error:"whatsapp_test_send_failed"},502);
   }
   if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);
   return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202);
