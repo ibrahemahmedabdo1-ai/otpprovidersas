@@ -139,7 +139,9 @@ export class LiveOtpDeliveryService {
   /** Live WhatsApp send. Customer traffic remains fail-closed until both API and gateway flags,
    * provider activation, an explicitly routing-eligible device, and receipt reconciliation are ready. */
   private async sendWhatsApp(k: ApiKeyContext, input: LiveSendInput, idemHeader: string | undefined, correlationId: string, ip?: string) {
-    if (process.env.WA_CUSTOMER_SEND_ENABLED !== "true") throw new ForbiddenException({ error: "channel_not_live" });
+    if (process.env.WA_CUSTOMER_SEND_ENABLED !== "true" || process.env.WHATSAPP_LINKED_DEVICE_ENABLED !== "true") {
+      throw new ForbiddenException({ error: "channel_not_live" });
+    }
     const gatewayToken = process.env.WA_GATEWAY_TOKEN ?? "";
     if (gatewayToken.length < 24) throw new ServiceUnavailableException({ error: "gateway_not_configured" });
     const idem = parseIdempotencyKey(idemHeader);
