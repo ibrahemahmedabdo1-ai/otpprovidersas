@@ -3,6 +3,24 @@
 Status legend: **VERIFIED** (observed result), **IMPLEMENTED, NOT PRODUCTION-VERIFIED** (code merged and CI green, not exercised live), **BLOCKED** (needs an external action), **NOT IMPLEMENTED**.
 Overall decision today: **NOT READY FOR PRODUCTION** for opening to paying customers. Reasons are in section 3.
 
+## 0. Update 2026-11-24 (checked live)
+
+| Item | Status |
+|---|---|
+| `main` `e9a993a`: all CI checks green | VERIFIED |
+| Migration 0010 (ticket-linked top-ups) applied to production, columns/indexes/trigger confirmed | VERIFIED |
+| Production DB: 0 negative wallets, wallets match ledger (0 of 25 differ) | VERIFIED |
+| `/health/ready` on production API: 200, database up | VERIFIED |
+| Resend webhook code: Svix HMAC, timing-safe compare, 5 minute window, row lock, charge only on `email.delivered` | VERIFIED BY CODE REVIEW; NOT TESTED with a live event |
+| Vercel: no deployment of `main` since `79a23ff` (API, website) / `50786dd` (admin, console, support); platform says "retry in 24 hours" | BLOCKED BY EXTERNAL ACCESS |
+| WhatsApp customer sending disabled in code (423 / `delivery_receipt_reconciliation_not_enabled`); gateway runtime health | Disabled VERIFIED BY CODE; health BLOCKED (no Railway access) |
+| Resend: `mail.otpprovider.com` verified; `otpprovider.com` DKIM failed; Receiving disabled on both | VERIFIED (read-only) |
+| `schema_migrations` has no row for 0008 although its objects exist in production | Tracking drift, see PR notes |
+| Mail Center inbound email | NOT IMPLEMENTED (Receiving disabled) |
+| Backup restore drill, Android release builds | NOT TESTED |
+
+Launch scope: Email OTP only. WhatsApp stays on the personal QR-linked device and customer sending stays disabled until delivery receipts, reconciliation and billing are verified. See `docs/operations/GO-LIVE-CHECKLIST.md`.
+
 ## 1. Delivered and verified (CI green on every merged PR; evidence = PR/commit)
 
 | Area | Evidence | Status |
