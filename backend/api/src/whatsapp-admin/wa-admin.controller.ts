@@ -1,0 +1,13 @@
+import { Body, Controller, Get, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { AuthGuard, type AuthedRequest } from "../auth/auth.guard";
+import { WhatsAppAdminService } from "./wa-admin.service";
+
+/** Staff only (Admin / Super Admin). Support is refused in the service. Customer sending is NOT exposed here. */
+@Controller("v1/admin/whatsapp")
+@UseGuards(AuthGuard)
+export class WhatsAppAdminController {
+  constructor(private readonly wa: WhatsAppAdminService) {}
+  @Get("devices") devices(@Req() req: AuthedRequest) { return this.wa.devices(req.auth!); }
+  @Post("test-send") @HttpCode(202) testSend(@Body() body: unknown, @Req() req: AuthedRequest) { return this.wa.testSend(req.auth!, body, req.ip); }
+  @Get("receipts/:messageId") receipts(@Param("messageId") id: string, @Req() req: AuthedRequest) { return this.wa.receipts(req.auth!, id); }
+}

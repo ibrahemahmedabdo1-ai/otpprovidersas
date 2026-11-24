@@ -505,6 +505,37 @@ paths:
         "401": {description: Not signed in, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "403": {description: Only support staff, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "409": {description: Deposit not open, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/devices:
+    get:
+      tags: ["Admin"]
+      summary: "Linked WhatsApp devices and their state (Admin / Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/test-send:
+    post:
+      tags: ["Admin"]
+      summary: "Send one test message to an allow-listed recipient. Accepted is not delivered."
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "202": {description: Accepted by WhatsApp}
+        "400": {description: Validation failed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed or recipient not allow-listed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {description: Rate limited, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/receipts/{messageId}:
+    get:
+      tags: ["Admin"]
+      summary: "Delivery receipt events recorded by the gateway for a message"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters: [{name: messageId, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "501": {description: Gateway receipts endpoint not deployed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/preferences:
     get:
       tags: ["Console"]

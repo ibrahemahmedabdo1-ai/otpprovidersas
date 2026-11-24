@@ -7,7 +7,7 @@ export const dirOf = (l: Locale): "rtl" | "ltr" => (l === "ar" ? "rtl" : "ltr");
 const en = {
   "nav.overview": "Overview", "nav.deposits": "Deposits", "nav.users": "Users", "nav.organizations": "Organizations", "nav.pricing": "Pricing", "nav.coupons": "Coupons",
   "nav.providers": "Providers", "nav.tickets": "Tickets", "nav.webhooks": "Webhooks", "nav.company": "Company", "nav.audit": "Audit log", "nav.reconciliation": "Reconciliation",
-  "nav.approvals": "Approvals", "nav.staff": "Staff", "nav.translation": "Translation", "nav.planned": "Not built yet",
+  "nav.approvals": "Approvals", "nav.staff": "Staff", "nav.translation": "Translation", "nav.whatsapp": "WhatsApp", "nav.planned": "Not built yet",
   "shell.signOut": "Sign out", "shell.language": "Language", "shell.skip": "Skip to content", "shell.mainNav": "Main navigation",
   "shell.wrongTitle": "Wrong console", "shell.wrongBody": "This account ({role}) is not allowed in the {app} console. Sign out and use the right one.",
   "ov.title": "Overview", "ov.sub": "Every figure is calculated from the live database when you open this page. Nothing is estimated.",
@@ -26,7 +26,7 @@ export type Key = keyof typeof en;
 const ar: Partial<Record<Key, string>> = {
   "nav.overview": "نظرة عامة", "nav.deposits": "الإيداعات", "nav.users": "المستخدمون", "nav.organizations": "المؤسسات", "nav.pricing": "الأسعار", "nav.coupons": "الكوبونات",
   "nav.providers": "المزوّدون", "nav.tickets": "التذاكر", "nav.webhooks": "الويب هوكس", "nav.company": "الشركة", "nav.audit": "سجل التدقيق", "nav.reconciliation": "المطابقة",
-  "nav.approvals": "الموافقات", "nav.staff": "الموظفون", "nav.translation": "الترجمة", "nav.planned": "قيد الإنشاء",
+  "nav.approvals": "الموافقات", "nav.staff": "الموظفون", "nav.translation": "الترجمة", "nav.whatsapp": "واتساب", "nav.planned": "قيد الإنشاء",
   "shell.signOut": "تسجيل الخروج", "shell.language": "اللغة", "shell.skip": "تخطَّ إلى المحتوى", "shell.mainNav": "التنقل الرئيسي",
   "shell.wrongTitle": "لوحة غير مناسبة", "shell.wrongBody": "هذا الحساب ({role}) غير مسموح له بلوحة {app}. سجّل الخروج واستخدم اللوحة الصحيحة.",
   "ov.title": "نظرة عامة", "ov.sub": "كل رقم يُحسب من قاعدة البيانات الحية عند فتح الصفحة. لا توجد تقديرات.",
@@ -43,7 +43,7 @@ const ar: Partial<Record<Key, string>> = {
 const ru: Partial<Record<Key, string>> = {
   "nav.overview": "Обзор", "nav.deposits": "Пополнения", "nav.users": "Пользователи", "nav.organizations": "Организации", "nav.pricing": "Цены", "nav.coupons": "Купоны",
   "nav.providers": "Провайдеры", "nav.tickets": "Тикеты", "nav.webhooks": "Вебхуки", "nav.company": "Компания", "nav.audit": "Журнал аудита", "nav.reconciliation": "Сверка",
-  "nav.approvals": "Согласования", "nav.staff": "Сотрудники", "nav.translation": "Перевод", "nav.planned": "Ещё не готово",
+  "nav.approvals": "Согласования", "nav.staff": "Сотрудники", "nav.translation": "Перевод", "nav.whatsapp": "WhatsApp", "nav.planned": "Ещё не готово",
   "shell.signOut": "Выйти", "shell.language": "Язык", "shell.skip": "К содержимому", "shell.mainNav": "Основная навигация",
   "shell.wrongTitle": "Не та консоль", "shell.wrongBody": "Этому аккаунту ({role}) нельзя входить в консоль {app}. Выйдите и используйте нужную.",
   "ov.title": "Обзор", "ov.sub": "Все цифры считаются из рабочей базы при открытии страницы. Оценок нет.",
@@ -60,7 +60,7 @@ const ru: Partial<Record<Key, string>> = {
 const es: Partial<Record<Key, string>> = {
   "nav.overview": "Resumen", "nav.deposits": "Depósitos", "nav.users": "Usuarios", "nav.organizations": "Organizaciones", "nav.pricing": "Precios", "nav.coupons": "Cupones",
   "nav.providers": "Proveedores", "nav.tickets": "Tickets", "nav.webhooks": "Webhooks", "nav.company": "Empresa", "nav.audit": "Registro de auditoría", "nav.reconciliation": "Conciliación",
-  "nav.approvals": "Aprobaciones", "nav.staff": "Personal", "nav.translation": "Traducción", "nav.planned": "Aún no disponible",
+  "nav.approvals": "Aprobaciones", "nav.staff": "Personal", "nav.translation": "Traducción", "nav.whatsapp": "WhatsApp", "nav.planned": "Aún no disponible",
   "shell.signOut": "Cerrar sesión", "shell.language": "Idioma", "shell.skip": "Saltar al contenido", "shell.mainNav": "Navegación principal",
   "shell.wrongTitle": "Consola incorrecta", "shell.wrongBody": "Esta cuenta ({role}) no puede usar la consola {app}. Cierra sesión y usa la correcta.",
   "ov.title": "Resumen", "ov.sub": "Cada cifra se calcula con la base de datos real al abrir esta página. No hay estimaciones.",
@@ -77,7 +77,7 @@ const es: Partial<Record<Key, string>> = {
 const de: Partial<Record<Key, string>> = {
   "nav.overview": "Übersicht", "nav.deposits": "Einzahlungen", "nav.users": "Benutzer", "nav.organizations": "Organisationen", "nav.pricing": "Preise", "nav.coupons": "Gutscheine",
   "nav.providers": "Anbieter", "nav.tickets": "Tickets", "nav.webhooks": "Webhooks", "nav.company": "Unternehmen", "nav.audit": "Audit-Protokoll", "nav.reconciliation": "Abgleich",
-  "nav.approvals": "Freigaben", "nav.staff": "Mitarbeiter", "nav.translation": "Übersetzung", "nav.planned": "Noch nicht gebaut",
+  "nav.approvals": "Freigaben", "nav.staff": "Mitarbeiter", "nav.translation": "Übersetzung", "nav.whatsapp": "WhatsApp", "nav.planned": "Noch nicht gebaut",
   "shell.signOut": "Abmelden", "shell.language": "Sprache", "shell.skip": "Zum Inhalt springen", "shell.mainNav": "Hauptnavigation",
   "shell.wrongTitle": "Falsche Konsole", "shell.wrongBody": "Dieses Konto ({role}) darf die {app}-Konsole nicht nutzen. Abmelden und die richtige verwenden.",
   "ov.title": "Übersicht", "ov.sub": "Jede Zahl wird beim Öffnen aus der Live-Datenbank berechnet. Nichts ist geschätzt.",
@@ -94,7 +94,7 @@ const de: Partial<Record<Key, string>> = {
 const zh: Partial<Record<Key, string>> = {
   "nav.overview": "概览", "nav.deposits": "充值", "nav.users": "用户", "nav.organizations": "组织", "nav.pricing": "价格", "nav.coupons": "优惠券",
   "nav.providers": "服务商", "nav.tickets": "工单", "nav.webhooks": "Webhooks", "nav.company": "公司", "nav.audit": "审计日志", "nav.reconciliation": "对账",
-  "nav.approvals": "审批", "nav.staff": "员工", "nav.translation": "翻译", "nav.planned": "尚未开发",
+  "nav.approvals": "审批", "nav.staff": "员工", "nav.translation": "翻译", "nav.whatsapp": "WhatsApp", "nav.planned": "尚未开发",
   "shell.signOut": "退出登录", "shell.language": "语言", "shell.skip": "跳到内容", "shell.mainNav": "主导航",
   "shell.wrongTitle": "控制台不匹配", "shell.wrongBody": "此账号（{role}）不能使用 {app} 控制台。请退出并使用正确的控制台。",
   "ov.title": "概览", "ov.sub": "打开页面时，所有数字都实时从数据库计算，没有任何估算。",
