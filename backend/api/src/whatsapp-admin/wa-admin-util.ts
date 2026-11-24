@@ -16,3 +16,8 @@ export function validTestMessage(v: unknown): string | null {
 }
 export const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 export const isMessageId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9]{8,64}$/.test(v);
+
+/** Fail closed: an empty allow-list must never authorize a test recipient. */
+export function isRecipientAllowlisted(to: string, allowlist: string[]): boolean {
+  return allowlist.length > 0 && allowlist.includes(to);
+}

@@ -10,6 +10,7 @@ const ERR: Record<string, string> = {
   gateway_url_not_configured: "The WhatsApp provider has no gateway address configured.",
   gateway_unreachable: "The WhatsApp gateway did not answer. Try again in a minute.",
   recipient_not_allowlisted: "This number is not on the test allow-list.",
+  recipient_allowlist_not_configured: "Test sending is blocked until the Admin test-recipient allow-list is configured.",
   rate_limited: "Too many test sends. Wait a few minutes.",
   device_not_connected: "The selected device is not connected.",
   admin_test_sending_disabled: "Test sending is switched off on the gateway.",
