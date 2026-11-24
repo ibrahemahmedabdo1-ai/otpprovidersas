@@ -1,5 +1,16 @@
 -- Add an explicit, durable link from each WhatsApp receipt to the OTP delivery it confirms.
 -- Safe additive migration: existing admin test receipts remain unlinked.
+-- The gateway historically created this table at startup; create it here too so
+-- clean database installs and CI can apply the FK/index before the gateway starts.
+CREATE TABLE IF NOT EXISTS wa_message_receipts (
+  id bigserial PRIMARY KEY,
+  device_id uuid NOT NULL,
+  message_id text NOT NULL,
+  status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),
+  recipient_hash text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(device_id,message_id,status)
+);
 ALTER TABLE wa_message_receipts
   ADD COLUMN IF NOT EXISTS otp_delivery_id uuid;
 
