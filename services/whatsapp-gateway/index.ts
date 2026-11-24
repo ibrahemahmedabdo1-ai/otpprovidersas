@@ -190,7 +190,26 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  if(req.method==="POST"&&m[2]==="reconnect"){await start(id);return json({ok:true,state:"starting"},202)}
  if(req.method==="PATCH"&&!m[2]){const b=await req.json().catch(()=>({})),label=String(b.label||"").trim();if(label.length<2||label.length>80)return json({error:"invalid_label"},400);const changed=await sql`UPDATE wa_gateway_devices SET label=${label} WHERE id=${id}::uuid RETURNING id,label,state`;if(!changed.length)return json({error:"not_found"},404);await sql`UPDATE whatsapp_devices SET label=${label},updated_at=now() WHERE id=${id}::uuid`;return json(changed[0])}
  if(req.method==="DELETE"&&!m[2]){const s=sockets.get(id);if(s){try{await s.logout()}catch{}try{s.end(undefined)}catch{}}sockets.delete(id);live.delete(id);if(timers.has(id))clearTimeout(timers.get(id));await sql`DELETE FROM wa_gateway_kv WHERE k LIKE ${id+":%"}`;await sql`DELETE FROM wa_gateway_devices WHERE id=${id}::uuid`;await sql`DELETE FROM whatsapp_devices WHERE id=${id}::uuid`;return json({ok:true})}}
- if(req.method==="POST"&&p==="/admin/test-send"){if(E.WA_ADMIN_TEST_SEND_ENABLED!=="true")return json({error:"admin_test_sending_disabled"},423);const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);const r=await s.sendMessage(to+"@s.whatsapp.net",{text:msg});if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202)}
+ if(req.method==="POST"&&p==="/admin/test-send"){
+  if(E.WA_ADMIN_TEST_SEND_ENABLED!=="true")return json({error:"admin_test_sending_disabled"},423);
+  const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);
+  if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);
+  if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
+  let r:any;
+  try {
+    r=await s.sendMessage(to+"@s.whatsapp.net",{text:msg});
+  } catch(err:any) {
+    const reason=String(err?.message||"");
+    if(reason.includes("No open session")) {
+      console.error("WHATSAPP_SIGNAL_SESSION_NOT_OPEN");
+      return json({error:"signal_session_not_open",note:"WhatsApp could not establish an encryption session for this recipient. The linked device credentials were not reset; inspect the Signal session and retry after recovery."},502);
+    }
+    console.error("WHATSAPP_TEST_SEND_FAILED");
+    return json({error:"whatsapp_test_send_failed"},502);
+  }
+  if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);
+  return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202);
+}
  if(req.method==="POST"&&p==="/v1/send"){if(E.WA_CUSTOMER_SEND_ENABLED!=="true")return json({error:"customer_sending_disabled"},423);return json({error:"delivery_receipt_reconciliation_not_enabled"},503)}
  return json({error:"not_found"},404);
 }});
