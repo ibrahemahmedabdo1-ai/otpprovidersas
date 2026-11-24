@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { Pool, type PoolClient } from "pg";
 import { loadConfig } from "./config";
 
@@ -15,10 +15,13 @@ export function normalizeDatabaseSslMode(connectionString: string): string {
 @Injectable()
 export class DbService implements OnModuleDestroy {
   readonly pool: Pool;
+  private readonly log = new Logger("Database");
   constructor() {
     const cfg = loadConfig(process.env);
-    // Neon uses strict TLS verification. 15 s connect timeout covers a Neon cold start; queries still time out at 10 s.
-    this.pool = new Pool({ connectionString: normalizeDatabaseSslMode(cfg.databaseUrl), max: 10, connectionTimeoutMillis: 15000, idleTimeoutMillis: 30000, statement_timeout: 10000 });
+    // Serverless instances are short-lived and can scale horizontally. Keep each instance deliberately small
+    // so aggregate connections cannot exhaust Neon; keepalive + a longer cold-start timeout smooths wakeups.
+    this.pool = new Pool({ connectionString: normalizeDatabaseSslMode(cfg.databaseUrl), max: 2, min: 0, connectionTimeoutMillis: 30000, idleTimeoutMillis: 10000, keepAlive: true, keepAliveInitialDelayMillis: 10000, statement_timeout: 10000, application_name: "otpprovider-api" });
+    this.pool.on("error", (error) => this.log.error(`idle database client error: ${error.message}`));
   }
   async ping(): Promise<boolean> {
     try { await this.pool.query("SELECT 1"); return true; } catch { return false; }
