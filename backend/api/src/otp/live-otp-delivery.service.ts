@@ -152,8 +152,11 @@ export class LiveOtpDeliveryService {
     const gatewayUrl = safeString(provider.gateway_url);
     if (!/^https:\/\/[a-z0-9.-]+$/i.test(gatewayUrl)) throw new ServiceUnavailableException({ error: "gateway_url_not_configured" });
 
+    const to = input.to.trim();
+    const country = countryForE164(to);
     const priceResult = await this.db.pool.query(
-      "SELECT id,unit_price_micro_usd FROM prices WHERE channel='whatsapp' AND country='*' AND status='active' ORDER BY version DESC LIMIT 1"
+      "SELECT id,unit_price_micro_usd FROM prices WHERE channel='whatsapp' AND country IN ($1,'*') AND status='active' ORDER BY (country=$1) DESC,version DESC LIMIT 1",
+      [country]
     );
     const price = priceResult.rows[0];
     if (!price) throw new ServiceUnavailableException({ error: "price_not_configured" });
@@ -166,7 +169,6 @@ export class LiveOtpDeliveryService {
       throw new ForbiddenException({ error: "customer_verification_required" });
     }
 
-    const to = input.to.trim();
     const recipientHash = hmacHex(this.cfg.otpPepper, `recipient:whatsapp:${to}`);
     const daily = await this.db.pool.query("SELECT count(*)::int AS n FROM otp_requests WHERE project_id=$1 AND mode='live' AND created_at >= date_trunc('day',now())", [k.projectId]);
     if (k.dailyLimit !== null && daily.rows[0].n >= k.dailyLimit) throw new HttpException({ error: "daily_limit_reached" }, HttpStatus.TOO_MANY_REQUESTS);
@@ -197,9 +199,9 @@ export class LiveOtpDeliveryService {
       const available = paid + BigInt(String(wallet.rows[0]?.promo_micro_usd ?? 0)) - BigInt(String(wallet.rows[0]?.reserved_micro_usd ?? 0));
       if (!wallet.rows[0] || paid < amount || available < amount) return { kind: "insufficient" as const };
       await c.query(
-        `INSERT INTO otp_requests(id,project_id,wallet_id,mode,channel,recipient_hash,recipient_encrypted,code_hash,status,max_attempts,last_sent_at,expires_at,correlation_id)
-         VALUES($1,$2,$3,'live','whatsapp',$4,$5,$6,'pending',$7,NULL,now()+make_interval(secs=>$8),$9)`,
-        [id,k.projectId,k.walletId,recipientHash,encryptString(to,this.cfg.encryptionKey),hashOtp(this.cfg.otpPepper,id,code),k.maxAttempts,k.ttlSeconds,correlationId]
+        `INSERT INTO otp_requests(id,project_id,wallet_id,mode,channel,recipient_hash,recipient_encrypted,country,code_hash,status,max_attempts,last_sent_at,expires_at,correlation_id)
+         VALUES($1,$2,$3,'live','whatsapp',$4,$5,$6,$7,'pending',$8,NULL,now()+make_interval(secs=>$9),$10)`,
+        [id,k.projectId,k.walletId,recipientHash,encryptString(to,this.cfg.encryptionKey),country,hashOtp(this.cfg.otpPepper,id,code),k.maxAttempts,k.ttlSeconds,correlationId]
       );
       await c.query(
         "INSERT INTO otp_deliveries(id,otp_request_id,provider_id,attempt_no,status,cost_micro_usd,price_id,routing_explanation) VALUES($1,$2,$3,1,'queued',$4,$5,$6::jsonb)",
