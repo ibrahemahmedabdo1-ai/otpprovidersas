@@ -8,7 +8,7 @@
     "check": "bun build index.ts --target=bun --external jimp --external sharp --external link-preview-js --outdir /tmp/otp-wa-gateway-build"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "6.7.18",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "postgres": "3.4.7",
     "qrcode": "1.5.4"
   }
