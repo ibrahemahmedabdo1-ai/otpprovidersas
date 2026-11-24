@@ -148,10 +148,13 @@ export class LiveOtpDeliveryService {
     if (!idem.ok) throw new UnprocessableEntityException({ error: "validation_failed", message: idem.error });
 
     const providerResult = await this.db.pool.query(
-      "SELECT id,cost_micro_usd,config->>'gateway_url' AS gateway_url FROM providers WHERE key='whatsapp_linked_device' AND channel='whatsapp' AND enabled=true AND maintenance=false ORDER BY priority,created_at LIMIT 1"
+      "SELECT id,cost_micro_usd,config->>'gateway_url' AS gateway_url,config->>'customer_sending_enabled' AS customer_sending_enabled,config->>'delivery_receipts' AS delivery_receipts FROM providers WHERE key='whatsapp_linked_device' AND channel='whatsapp' AND enabled=true AND maintenance=false ORDER BY priority,created_at LIMIT 1"
     );
     const provider = providerResult.rows[0];
     if (!provider) throw new ServiceUnavailableException({ error: "provider_unavailable" });
+    if (provider.customer_sending_enabled !== "true" || provider.delivery_receipts !== "otp_delivery_link_v1") {
+      throw new ServiceUnavailableException({ error: "whatsapp_provider_not_ready" });
+    }
     const gatewayUrl = safeString(provider.gateway_url);
     if (!/^https:\/\/[a-z0-9.-]+$/i.test(gatewayUrl)) throw new ServiceUnavailableException({ error: "gateway_url_not_configured" });
 
