@@ -14,8 +14,10 @@ async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
-await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),recipient_hash text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
+await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),recipient_hash text,otp_delivery_id uuid,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
+await sql`ALTER TABLE wa_message_receipts ADD COLUMN IF NOT EXISTS otp_delivery_id uuid`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_msg_idx ON wa_message_receipts(message_id)`;
+await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_delivery_status_idx ON wa_message_receipts(otp_delivery_id,status,created_at) WHERE otp_delivery_id IS NOT NULL`;
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_kv(k text PRIMARY KEY,v jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now())`;
 function decodeJson(v:any):any{
  if(v==null)return v;
@@ -105,15 +107,15 @@ async function start(id:string){
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
    const st=RECEIPT_STATUS[Number(it?.update?.status)];
-   if(it?.key?.fromMe&&it?.key?.id&&st)void recordReceipt(id,String(it.key.id),st,String(it.key.remoteJid||""));
+   if(it?.key?.fromMe&&it?.key?.id&&st)void recordReceipt(id,String(it.key.id),st,String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("message-receipt.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
    const r=it?.receipt||{};
-   if(it?.key?.fromMe&&it?.key?.id&&r.receiptTimestamp)void recordReceipt(id,String(it.key.id),"delivered",String(it.key.remoteJid||""));
-   if(it?.key?.fromMe&&it?.key?.id&&r.readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||""));
+   if(it?.key?.fromMe&&it?.key?.id&&r.receiptTimestamp)void recordReceipt(id,String(it.key.id),"delivered",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   if(it?.key?.fromMe&&it?.key?.id&&r.readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("connection.update",async(u:any)=>{
@@ -165,11 +167,14 @@ async function start(id:string){
  starts.set(id,task);
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
-const RECEIPT_STATUS:Record<number,string>={2:"server_ack",3:"delivered",4:"read",5:"played"};
-async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string){
+const RECEIPT_STATUS:Record<number,string>={0:"error",2:"server_ack",3:"delivered",4:"read",5:"played"};
+async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
- await sql`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash) VALUES(${deviceId}::uuid,${messageId},${status},${h}) ON CONFLICT(device_id,message_id,status) DO NOTHING`.catch(()=>{console.error("RECEIPT_PERSIST_FAILED")});
+ const prior=deliveryId?[]:await sql`SELECT otp_delivery_id FROM wa_message_receipts WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NOT NULL ORDER BY id LIMIT 1`;
+ const linked=deliveryId||prior[0]?.otp_delivery_id||null;
+ await sql`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
+ if(deliveryId)await sql`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
 }
 const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
@@ -232,7 +237,31 @@ const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
   if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);
   return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202);
 }
- if(req.method==="POST"&&p==="/v1/send"){if(E.WA_CUSTOMER_SEND_ENABLED!=="true")return json({error:"customer_sending_disabled"},423);return json({error:"delivery_receipt_reconciliation_not_enabled"},503)}
+ if(req.method==="POST"&&p==="/v1/send"){
+  if(E.WA_CUSTOMER_SEND_ENABLED!=="true")return json({error:"customer_sending_disabled"},423);
+  const b=await req.json().catch(()=>({}));
+  const to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),deliveryId=String(b.deliveryId||""),requestId=String(b.requestId||""),msg=String(b.message||"").trim();
+  if(!/^\d{8,15}$/.test(to)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deliveryId)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)||!msg||msg.length>500)return json({error:"invalid_request"},400);
+  const eligible=await sql`SELECT d.id FROM whatsapp_devices d JOIN otp_deliveries od ON od.id=${deliveryId}::uuid JOIN otp_requests r ON r.id=od.otp_request_id WHERE d.id=${id}::uuid AND d.provider_id=${providerId}::uuid AND d.state='connected' AND d.routing_eligible=true AND r.id=${requestId}::uuid AND r.channel='whatsapp' AND od.status IN ('queued','unknown') LIMIT 1`;
+  if(!eligible.length)return json({error:"delivery_or_device_not_eligible"},409);
+  const s=sockets.get(id);
+  if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
+  const pnJid=to+"@s.whatsapp.net";
+  let recipientJid=pnJid;
+  try{
+   const lookup=await s.onWhatsApp(to);
+   if(!Array.isArray(lookup)||!lookup.some((item:any)=>item?.exists))return json({error:"recipient_not_registered_on_whatsapp"},422);
+   const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+   if(typeof mapped==="string"&&mapped.endsWith("@lid"))recipientJid=mapped;
+  }catch(err:any){console.error("WHATSAPP_CUSTOMER_RECIPIENT_LOOKUP_FAILED");return json({error:"recipient_lookup_failed"},502);}
+  let sent:any;
+  try{sent=await s.sendMessage(recipientJid,{text:msg});}
+  catch(err:any){console.error("WHATSAPP_CUSTOMER_SEND_FAILED");return json({error:"whatsapp_send_failed"},502);}
+  const messageId=String(sent?.key?.id||"");
+  if(!messageId)return json({error:"provider_message_id_missing"},502);
+  await recordReceipt(id,messageId,"accepted",to,deliveryId);
+  return json({accepted:true,messageId,note:"Accepted by WhatsApp; awaiting explicit delivery receipt."},202);
+ }
  return json({error:"not_found"},404);
 }});
 console.log("OTPProvider WhatsApp gateway listening on",server.port);

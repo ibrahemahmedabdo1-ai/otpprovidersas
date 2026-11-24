@@ -514,6 +514,24 @@ paths:
         "200": {description: OK}
         "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/devices/{deviceId}/routing:
+    patch:
+      tags: ["Admin"]
+      summary: "Super Admin only: enable or disable a connected WhatsApp device for customer routing; does not activate customer sending"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters:
+        - {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [enabled], properties: {enabled: {type: boolean}}}
+      responses:
+        "200": {description: Routing eligibility updated}
+        "400": {description: Validation failed}
+        "403": {description: Super Admin only}
+        "404": {description: Device not found}
+        "409": {description: Device must be connected before enabling routing}
   /v1/admin/whatsapp/test-send:
     post:
       tags: ["Admin"]
