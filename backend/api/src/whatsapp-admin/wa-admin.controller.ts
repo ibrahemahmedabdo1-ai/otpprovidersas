@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard, type AuthedRequest } from "../auth/auth.guard";
 import { WhatsAppAdminService } from "./wa-admin.service";
 
@@ -8,6 +8,7 @@ import { WhatsAppAdminService } from "./wa-admin.service";
 export class WhatsAppAdminController {
   constructor(private readonly wa: WhatsAppAdminService) {}
   @Get("devices") devices(@Req() req: AuthedRequest) { return this.wa.devices(req.auth!); }
+  @Patch("devices/:deviceId/routing") setRouting(@Param("deviceId") id: string, @Body() body: unknown, @Req() req: AuthedRequest) { return this.wa.setRouting(req.auth!, id, body, req.ip); }
   @Post("test-send") @HttpCode(202) testSend(@Body() body: unknown, @Req() req: AuthedRequest) { return this.wa.testSend(req.auth!, body, req.ip); }
   @Get("receipts/:messageId") receipts(@Param("messageId") id: string, @Req() req: AuthedRequest) { return this.wa.receipts(req.auth!, id); }
 }
