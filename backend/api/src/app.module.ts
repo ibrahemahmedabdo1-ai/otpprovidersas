@@ -28,6 +28,8 @@ import { AdminStatsController, ConsoleStatsController } from "./stats/stats.cont
 import { StatsService } from "./stats/stats.service";
 import { SupportDepositsController } from "./wallet/wallet.controller";
 import { SupportDepositsService } from "./wallet/support-deposits.service";
+import { WhatsAppAdminController } from "./whatsapp-admin/wa-admin.controller";
+import { WhatsAppAdminService } from "./whatsapp-admin/wa-admin.service";
 import { AdminTranslationController, PreferencesController, SupportTranslationController } from "./translation/translation.controller";
 import { PreferencesService } from "./translation/preferences.service";
 import { TranslationService } from "./translation/translation.service";
@@ -36,9 +38,9 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController, WhatsAppAdminController],
   providers: [
-    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService, SupportDepositsService,
+    DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService, SupportDepositsService, WhatsAppAdminService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },
     { provide: Mailer, useFactory: () => (process.env.RESEND_API_KEY && process.env.EMAIL_FROM ? new ResendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM) : process.env.NODE_ENV === "production" ? new DisabledMailer() : new ConsoleMailer()) },
   ],
