@@ -1,5 +1,26 @@
 # OTPProvider production readiness report
 
+## 0b. Live recheck 2026-11-24 (current session)
+
+| Item | Live evidence | Status |
+|---|---|---|
+| Railway WhatsApp gateway | Production deployment `57dee11a` is SUCCESS; one replica online; no active Railway warnings or pending deploys | VERIFIED |
+| WhatsApp Admin test receipt | One allow-listed test message recorded `accepted`, `delivered`, and `server_ack` in `wa_message_receipts`; Admin receipt endpoint returned HTTP 200 | VERIFIED FOR ADMIN TEST ONLY |
+| WhatsApp customer routing | Provider remains disabled; device `routing_eligible=false`; customer sending is blocked; no `otp_deliveries` are linked to receipt message IDs | BLOCKED |
+| WhatsApp charge integration | `wa_message_receipts` has no foreign key or reconciliation path to `otp_deliveries`; wallet charge function only charges an `otp_deliveries` row in `delivered` state | NOT IMPLEMENTED |
+| Email provider | Resend sender domain `mail.otpprovider.com` is verified and sending-enabled; most recent `email.delivered` webhook attempt returned HTTP 200 | PARTIALLY VERIFIED |
+| Email OTP billing test | Production currently has no `otp_deliveries`; the existing OTP requests are old test-mode records | NOT PRODUCTION-VERIFIED |
+| Wallet ledger | `wallet_reconciliation()` returned zero mismatches across production wallets | VERIFIED |
+| Production database | Migrations 0001–0010 are recorded; receipt table exists (created by the gateway) | VERIFIED |
+| Vercel deployment rate limit | Latest main commit `9cbe312` has Vercel status failures for all five projects due to build-rate-limit; deployed production versions remain on earlier READY commits | BLOCKED BY PLATFORM LIMIT |
+| Domain configuration | Website, Admin, Customer Console, and Support custom domains are verified in Vercel; API currently uses its Vercel hostname | VERIFIED CONFIGURATION |
+| Restore / Android release | Backup restore drill and current signed Android release workflow were not executed in this recheck | NOT VERIFIED |
+
+The current branch `fix/resend-complaint-nonbillable` also narrows email billing evidence to the explicit `email.delivered` webhook. An `email.complained` event is recorded as a complaint signal only; it must not charge the wallet or release the reservation as a successful delivery.
+
+**Current launch decision:** Do not open general customer traffic yet. Email is the only candidate channel for a controlled production acceptance test after a verified customer login, a real OTP request, a delivered callback, and a wallet ledger check. WhatsApp remains off until the receipt-to-delivery association and idempotent customer billing path are implemented and tested. Do not use the Admin test-send receipt as proof that customer OTP billing is ready.
+
+
 Status legend: **VERIFIED** (observed result), **IMPLEMENTED, NOT PRODUCTION-VERIFIED** (code merged and CI green, not exercised live), **BLOCKED** (needs an external action), **NOT IMPLEMENTED**.
 Overall decision today: **NOT READY FOR PRODUCTION** for opening to paying customers. Reasons are in section 3.
 
