@@ -224,13 +224,14 @@ export class LiveOtpDeliveryService {
     if (created.kind === "replay") return { status:200,body:created.body };
 
     const message = `OTPProvider verification code: ${code}. It expires in ${Math.ceil(k.ttlSeconds/60)} minutes. Do not share this code.`;
+    type GatewayFetchResponse = { status: number; json(): Promise<unknown> };
     try {
-      const response = await fetch(gatewayUrl + "/v1/send", {
+      const response = (await fetch(gatewayUrl + "/v1/send", {
         method:"POST",
         headers:{authorization:"Bearer "+gatewayToken,"content-type":"application/json"},
         body:json({to,deviceId:String(device.id),deliveryId,requestId:id,message}),
         signal:AbortSignal.timeout(15000)
-      });
+      })) as unknown as GatewayFetchResponse;
       const payload = await response.json().catch(()=>({})) as Record<string,unknown>;
       const messageId = safeString(payload.messageId);
       if (response.status === 202 && payload.accepted === true && messageId) {
