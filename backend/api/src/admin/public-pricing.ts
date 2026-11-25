@@ -8,7 +8,7 @@ export type PublicPricing = {
   countries: { code: string; email: string | null; whatsapp: string | null }[];
 };
 
-/** Expose approved prices only when the corresponding provider is enabled and not in maintenance. */
+/** Expose approved prices only when the corresponding provider is enabled and not in maintenance. Country-specific WhatsApp prices override the global fallback. */
 export function buildPublicPricing(prices: PriceRow[], providers: ChannelLive[]): PublicPricing {
   const live = (ch: string) => providers.some((p) => p.channel === ch && p.live);
   const m = new Map<string, string>();
