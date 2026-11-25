@@ -1,6 +1,10 @@
 name: WhatsApp gateway keep-alive
 
 on:
+  push:
+    paths:
+      - ".github/workflows/whatsapp-gateway-keepalive.yml"
+      - "services/whatsapp-gateway/**"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
