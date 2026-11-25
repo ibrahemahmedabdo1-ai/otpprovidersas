@@ -8,11 +8,7 @@ export type PublicPricing = {
   countries: { code: string; email: string | null; whatsapp: string | null }[];
 };
 
-/** Keep WhatsApp hidden until the live send path and delivery-receipt billing are implemented. */
-export function applyPublicDeliveryGates(providers: ChannelLive[]): ChannelLive[] {
-  return providers.map((provider) => provider.channel === "whatsapp" ? { ...provider, live: false } : provider);
-}
-
+/** Expose approved prices only when the corresponding provider is enabled and not in maintenance. */
 export function buildPublicPricing(prices: PriceRow[], providers: ChannelLive[]): PublicPricing {
   const live = (ch: string) => providers.some((p) => p.channel === ch && p.live);
   const m = new Map<string, string>();
