@@ -7,7 +7,7 @@ if(!/^[a-f0-9]{64}$/i.test(ENC)) throw new Error("SESSION_ENCRYPTION_KEY must be
 if(!E.DATABASE_URL||TOKEN.length<24||PAIR.length<24) throw new Error("Gateway configuration missing");
 const sql=postgres(E.DATABASE_URL,{max:8,idle_timeout:20,connect_timeout:15,ssl:"require"});
 const owner=await sql.reserve();
-const lease=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton')) AS acquired`;
+const lease=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton:v2')) AS acquired`;
 let ownsLock=!!lease[0]?.acquired, initialized=false, providerId="";
 const encKey=await crypto.subtle.importKey("raw",new Uint8Array(Buffer.from(ENC,"hex")),{name:"AES-GCM"},false,["encrypt","decrypt"]);
 async function encryptJsonText(text:string){const iv=crypto.getRandomValues(new Uint8Array(12));const data=new TextEncoder().encode(text);const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},encKey,data);return "enc:v1:"+Buffer.from(iv).toString("base64")+":"+Buffer.from(new Uint8Array(encrypted)).toString("base64");}
@@ -314,7 +314,7 @@ setInterval(()=>void runOtpBackgroundTick(),60000);
 let lockBusyLogged=false;
 async function acquireAndInit(){
  if(!ownsLock){
-  const result=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton')) AS acquired`;
+  const result=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton:v2')) AS acquired`;
   if(!result[0]?.acquired){if(!lockBusyLogged){console.warn("GATEWAY_LOCK_BUSY");lockBusyLogged=true;}setTimeout(()=>acquireAndInit().catch((err:any)=>console.error("GATEWAY_LOCK_RETRY_FAILED",String(err?.message||"unknown").slice(0,160))),5000);return;}
   ownsLock=true;lockBusyLogged=false;console.log("GATEWAY_LOCK_ACQUIRED");
  }
@@ -322,4 +322,4 @@ async function acquireAndInit(){
  catch(err:any){console.error("GATEWAY_INIT_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,180)}));setTimeout(()=>acquireAndInit().catch(()=>{}),5000);}
 }
 acquireAndInit().catch((err:any)=>console.error("GATEWAY_INIT_FAILED"));
-process.on("SIGTERM",async()=>{for(const sock of sockets.values())try{sock.end(undefined)}catch{};try{if(ownsLock)await owner`SELECT pg_advisory_unlock(hashtext('otpprovider:whatsapp-gateway:singleton'))`;}catch{}try{owner.release()}catch{}await sql.end();process.exit(0);});
+process.on("SIGTERM",async()=>{for(const sock of sockets.values())try{sock.end(undefined)}catch{};try{if(ownsLock)await owner`SELECT pg_advisory_unlock(hashtext('otpprovider:whatsapp-gateway:singleton:v2'))`;}catch{}try{owner.release()}catch{}await sql.end();process.exit(0);});
