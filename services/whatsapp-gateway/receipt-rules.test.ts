@@ -4,6 +4,7 @@ import {
   isOutgoingBaileysMessageKey,
   mapBaileysMessageStatus,
   mapBaileysReceiptTimestamps,
+  receiptCorrelationLockKey,
 } from "./receipt-rules";
 
 test("maps all documented Baileys message status values without collapsing them", () => {
@@ -46,4 +47,16 @@ test("receipt timestamps produce separate delivered, read and played events", ()
   expect(mapBaileysReceiptTimestamps({ readTimestamp: 11 })).toEqual(["read"]);
   expect(mapBaileysReceiptTimestamps({})).toEqual([]);
   expect(mapBaileysReceiptTimestamps(null)).toEqual([]);
+});
+
+test("receipt correlation lock keys are stable and isolated per device/message pair", () => {
+  expect(receiptCorrelationLockKey("device-a", "message-1")).toBe(
+    receiptCorrelationLockKey("device-a", "message-1"),
+  );
+  expect(receiptCorrelationLockKey("device-a", "message-1")).not.toBe(
+    receiptCorrelationLockKey("device-b", "message-1"),
+  );
+  expect(receiptCorrelationLockKey("device-a", "message-1")).not.toBe(
+    receiptCorrelationLockKey("device-a", "message-2"),
+  );
 });
