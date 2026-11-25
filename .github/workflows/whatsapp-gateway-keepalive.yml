@@ -15,7 +15,7 @@ concurrency:
 jobs:
   health-ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
       - name: Wake and verify WhatsApp gateway
         shell: bash
@@ -23,12 +23,12 @@ jobs:
           set -euo pipefail
           url="https://whatsapp-linked-device-gateway-production.up.railway.app/health"
           for attempt in {1..10}; do
-            response="$(curl --silent --show-error --max-time 15 --output /tmp/gateway-health.json --write-out '%{http_code}' "$url" || true)"
-            if [ "$response" = "200" ] && echo "$response" | jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' >/dev/null; then
+            http_code="$(curl --silent --show-error --connect-timeout 8 --max-time 15 --output /tmp/gateway-health.json --write-out '%{http_code}' "$url" || true)"
+            if [ "$http_code" = "200" ] && jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' /tmp/gateway-health.json >/dev/null 2>&1; then
               echo "WhatsApp gateway is ready and its authenticated API tick succeeded."
               exit 0
             fi
-            echo "Gateway not ready yet (HTTP ${response:-no-response}); retry ${attempt}/10."
+            echo "Gateway not ready yet (HTTP ${http_code:-no-response}); retry ${attempt}/10."
             sleep 5
           done
           echo "WhatsApp gateway did not become healthy."
