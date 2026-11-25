@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run index.ts",
-    "check": "bun build index.ts --target=bun --external jimp --external sharp --external link-preview-js --outdir /tmp/otp-wa-gateway-build"
+    "check": "bun build index.ts --target=bun --external jimp --external sharp --external link-preview-js --outdir /tmp/otp-wa-gateway-build",
+    "test": "bun test"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "7.0.0-rc14",

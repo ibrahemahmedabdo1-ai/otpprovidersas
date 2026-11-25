@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
+import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps, receiptCorrelationLockKey } from "./receipt-rules";
 const E=Bun.env, TOKEN=E.GATEWAY_TOKEN||"", PAIR=E.PAIRING_VIEW_KEY||"", ENC=E.SESSION_ENCRYPTION_KEY||"";
 if(!/^[a-f0-9]{64}$/i.test(ENC)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
 if(!E.DATABASE_URL||TOKEN.length<24||PAIR.length<24) throw new Error("Gateway configuration missing");
@@ -14,7 +15,7 @@ async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
-await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),recipient_hash text,otp_delivery_id uuid,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
+await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','pending','server_ack','delivered','read','played','error')),recipient_hash text,otp_delivery_id uuid,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
 await sql`ALTER TABLE wa_message_receipts ADD COLUMN IF NOT EXISTS otp_delivery_id uuid`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_msg_idx ON wa_message_receipts(message_id)`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_delivery_status_idx ON wa_message_receipts(otp_delivery_id,status,created_at) WHERE otp_delivery_id IS NOT NULL`;
@@ -106,16 +107,18 @@ async function start(id:string){
  sock.ev.on("messages.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
-   const st=RECEIPT_STATUS[Number(it?.update?.status)];
-   if(it?.key?.fromMe&&it?.key?.id&&st)void recordReceipt(id,String(it.key.id),st,String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   const status=mapBaileysMessageStatus(it?.update?.status);
+   if(status)void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("message-receipt.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
-   const r=it?.receipt||{};
-   if(it?.key?.fromMe&&it?.key?.id&&r.receiptTimestamp)void recordReceipt(id,String(it.key.id),"delivered",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
-   if(it?.key?.fromMe&&it?.key?.id&&r.readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   for(const status of mapBaileysReceiptTimestamps(it?.receipt)){
+    void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   }
   }
  });
  sock.ev.on("connection.update",async(u:any)=>{
@@ -167,14 +170,19 @@ async function start(id:string){
  starts.set(id,task);
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
-const RECEIPT_STATUS:Record<number,string>={0:"error",2:"server_ack",3:"delivered",4:"read",5:"played"};
+
 async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
- const prior=deliveryId?[]:await sql`SELECT otp_delivery_id FROM wa_message_receipts WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NOT NULL ORDER BY id LIMIT 1`;
- const linked=deliveryId||prior[0]?.otp_delivery_id||null;
- await sql`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
- if(deliveryId)await sql`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
+ // Serialize receipt persistence per (device, message) so accepted and delivery events cannot race.
+ const lockKey=receiptCorrelationLockKey(deviceId,messageId);
+ await sql.begin(async tx=>{
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))`;
+  const prior=deliveryId?[]:await tx`SELECT otp_delivery_id FROM wa_message_receipts WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NOT NULL ORDER BY id LIMIT 1`;
+  const linked=deliveryId||prior[0]?.otp_delivery_id||null;
+  await tx`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
+  if(deliveryId)await tx`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
+ });
 }
 const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
