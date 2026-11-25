@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { blockedReason, normalizeLang, parseSettings, resolveTargetLang, withinDailyLimit } from "./core";
-import { type FetchLike, DeepLProvider, GoogleProvider, ProviderError, providerFromEnv } from "./providers";
+import { type FetchLike, DeepLProvider, GoogleProvider, LibreTranslateProvider, ProviderError, providerFromEnv } from "./providers";
 import { hasTranslatableText, restore, segment, toMarked } from "./protect";
 
 const res = (body: string, status: number) => ({ ok: status >= 200 && status < 300, status, json: async () => JSON.parse(body) as unknown });
@@ -116,4 +116,24 @@ test("without a key or a known provider name, translation is reported as not con
   assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k" }), null);
   assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "other" }), null);
   assert.equal(providerFromEnv({ TRANSLATION_API_KEY: "k", TRANSLATION_PROVIDER: "google" })?.key, "google");
+});
+
+test("LibreTranslate: uses configured instance, protects HTML markers, and detects source language", async () => {
+  let seen: { url: string; init: { method: string; headers: Record<string, string>; body: string } } | null = null;
+  const f: FetchLike = async (url, init) => {
+    seen = { url, init };
+    return res(JSON.stringify({ translatedText: "Hola <span translate=\\"no\\">0</span>", detectedLanguage: { language: "en", confidence: 90 } }), 200);
+  };
+  const r = await new LibreTranslateProvider("https://translate.example.test/", "", f).translate("Hello <span translate=\\"no\\">0</span>", "es");
+  assert.deepEqual(r, { text: "Hola <span translate=\\"no\\">0</span>", detected: "en" });
+  const s = seen as unknown as { url: string; init: { headers: Record<string, string>; body: string } };
+  assert.equal(s.url, "https://translate.example.test/translate");
+  assert.equal(JSON.parse(s.init.body).format, "html");
+  assert.equal("api_key" in JSON.parse(s.init.body), false);
+});
+
+test("LibreTranslate provider needs a configured base URL but no API key", () => {
+  assert.equal(providerFromEnv({ TRANSLATION_PROVIDER: "libretranslate" }), null);
+  assert.equal(providerFromEnv({ TRANSLATION_PROVIDER: "libretranslate", TRANSLATION_BASE_URL: "https://translate.example.test" })?.key, "libretranslate");
+  assert.equal(providerFromEnv({ TRANSLATION_PROVIDER: "libretranslate", TRANSLATION_BASE_URL: "http://public.example.test" }), null);
 });

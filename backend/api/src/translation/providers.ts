@@ -3,7 +3,7 @@ import { normalizeLang, type Lang } from "./core";
 export type ProviderResult = { text: string; detected: Lang | null };
 export type Marks = { esc: (s: string) => string; unesc: (s: string) => string; mark: (i: number) => string; re: RegExp };
 export interface TranslationProvider {
-  readonly key: "deepl" | "google";
+  readonly key: "deepl" | "google" | "libretranslate";
   readonly marks: Marks;
   translate(marked: string, target: Lang): Promise<ProviderResult>;
 }
@@ -66,11 +66,39 @@ export class GoogleProvider implements TranslationProvider {
   }
 }
 
+
+/** Self-hosted LibreTranslate. No API key is required unless the instance enables authentication. */
+export class LibreTranslateProvider implements TranslationProvider {
+  readonly key = "libretranslate" as const;
+  readonly marks: Marks = { esc: xmlEsc, unesc: xmlUnesc, mark: (i) => `<span translate="no">${i}</span>`, re: /<span translate="no">(\d+)<\/span>/g };
+  constructor(private readonly baseUrl: string, private readonly apiKey = "", private readonly f: FetchLike = defaultFetch, private readonly timeoutMs = 12000) {}
+  async translate(marked: string, target: Lang): Promise<ProviderResult> {
+    const body: Record<string, string> = { q: marked, source: "auto", target: target === "zh" ? "zh" : target, format: "html" };
+    if (this.apiKey) body.api_key = this.apiKey;
+    const res = await post(`${this.baseUrl.replace(/\/+$/, "")}/translate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }, this.f, this.timeoutMs);
+    if (!res.ok) throw httpError(res.status);
+    const j = (await res.json().catch(() => null)) as { translatedText?: string; detectedLanguage?: { language?: string } } | null;
+    if (!j || typeof j.translatedText !== "string") throw new ProviderError("bad_response");
+    return { text: j.translatedText, detected: normalizeLang(j.detectedLanguage?.language) };
+  }
+}
+
 /** Builds the provider from server-side environment variables only. Returns null when none is configured. The key never leaves this process. */
 export function providerFromEnv(env: NodeJS.ProcessEnv, f: FetchLike = defaultFetch): TranslationProvider | null {
-  const key = env.TRANSLATION_API_KEY?.trim();
-  if (!key) return null;
+  const key = env.TRANSLATION_API_KEY?.trim() ?? "";
   const which = (env.TRANSLATION_PROVIDER ?? "").trim().toLowerCase();
+  if (which === "libretranslate") {
+    const base = env.TRANSLATION_BASE_URL?.trim();
+    if (!base) return null;
+    try { const u = new URL(base); if (u.protocol !== "https:" && u.hostname !== "localhost" && !u.hostname.endsWith(".railway.internal")) return null; }
+    catch { return null; }
+    return new LibreTranslateProvider(base, key, f);
+  }
+  if (!key) return null;
   if (which === "deepl") return new DeepLProvider(key, f);
   if (which === "google") return new GoogleProvider(key, f);
   return null;
