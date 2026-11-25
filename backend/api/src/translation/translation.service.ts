@@ -195,7 +195,7 @@ export class TranslationService {
     ]);
     return {
       configured: this.provider !== null, provider: this.provider?.key ?? null,
-      note: this.provider ? null : "No translation provider is configured on the server. Set TRANSLATION_PROVIDER (deepl or google) and TRANSLATION_API_KEY in the API environment. No translation is performed until then.",
+      note: this.provider ? null : "No translation provider is configured on the server. For LibreTranslate set TRANSLATION_PROVIDER=libretranslate and TRANSLATION_BASE_URL to your private HTTPS instance URL. TRANSLATION_API_KEY is optional only when the instance does not require authentication. No translation is performed until then.",
       settings: s, usedTodayChars: today,
       last30Days: { translations: ev.rows[0]?.ok ?? 0, errors: ev.rows[0]?.errors ?? 0, chars: ev.rows[0]?.chars ?? 0 },
       errorBreakdown: errs.rows.map((e) => ({ code: e.error_code as string, count: e.n as number, lastAt: e.last_at })),
