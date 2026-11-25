@@ -186,7 +186,7 @@ async function recordReceipt(deviceId:string,messageId:string,status:string,to?:
 }
 const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
- if(req.method==="GET"&&(p==="/"||p==="/health"))return json({ok:true,service:"otp-whatsapp-gateway",devices:sockets.size,ready:initialized});
+ if(req.method==="GET"&&(p==="/"||p==="/health"))return json({ok:true,service:"otp-whatsapp-gateway",devices:sockets.size,ready:initialized,apiTick:{status:lastOtpTickStatus,lastAt:lastOtpTickAt}});
  if(!ownsLock||!initialized)return json({error:"gateway_initializing"},503);
  if(req.method==="GET"&&p===base){const html='<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>OTPProvider WhatsApp</title></head><body style="font:16px system-ui;max-width:520px;margin:30px auto;padding:20px;text-align:center"><h2>WhatsApp linked devices</h2><select id="d"></select><p id="s">Loadingâ¦</p><img id="q" style="width:320px;max-width:100%" hidden><p>WhatsApp â Linked devices â Link a device</p><script>async function tick(){let a=await fetch(location.pathname+"/devices").then(r=>r.json()),d=document.querySelector("#d"),v=d.value;d.innerHTML=a.map(x=>"<option value=\\""+x.id+"\\">"+x.label+"</option>").join("");if(v)d.value=v;if(!d.value)return;let q=await fetch(location.pathname+"/qr?deviceId="+d.value).then(r=>r.json());const reasons={"515":"WhatsApp restarted the pairing session; reconnect and scan the new QR","401":"WhatsApp rejected the session; remove the linked device from the phone and retry","440":"WhatsApp replaced this session; remove the old OTPProvider linked device from the phone, then reconnect and scan a fresh QR","408":"Pairing timed out; refresh and scan a fresh QR","428":"Connection closed before pairing completed","429":"WhatsApp rate-limited pairing; wait before retrying","auth_persist_failed":"Could not save WhatsApp login credentials to the database","connection_state_update_failed":"Could not save the connection state","logged_out":"WhatsApp logged this device out"};document.querySelector("#s").textContent=q.state+(q.error?" â "+(reasons[q.error]||("Reason: "+q.error)):"");let im=document.querySelector("#q");im.hidden=!q.qr;if(q.qr)im.src=q.qr}document.querySelector("#d").onchange=tick;tick();setInterval(tick,2500)</script></body></html>';return new Response(html,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}})}
  if(p.startsWith(base+"/")){
@@ -275,7 +275,7 @@ const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch
 console.log("OTPProvider WhatsApp gateway listening on",server.port);
 const OTP_API_BASE_URL=(E.OTP_API_BASE_URL||"").replace(/\/+$/,"");
 const OTP_CRON_SECRET=E.OTP_CRON_SECRET||"";
-let otpTickInFlight=false;
+let otpTickInFlight=false,lastOtpTickStatus="not_run",lastOtpTickAt:number|null=null;
 async function runOtpBackgroundTick(){
  if(!OTP_API_BASE_URL||OTP_CRON_SECRET.length<24){console.error("OTP_BACKGROUND_RUN_CONFIG_MISSING");return;}
  if(otpTickInFlight)return;
@@ -289,11 +289,13 @@ async function runOtpBackgroundTick(){
    body:"{}",
    signal:controller.signal
   });
-  if(!response.ok)console.error("OTP_BACKGROUND_RUN_FAILED",JSON.stringify({status:response.status}));
-  else console.log("OTP_BACKGROUND_RUN_OK");
+  if(!response.ok){lastOtpTickStatus=`http_${response.status}`;console.error("OTP_BACKGROUND_RUN_FAILED",JSON.stringify({status:response.status}));}
+  else{lastOtpTickStatus="ok";console.log("OTP_BACKGROUND_RUN_OK");}
  }catch{
+  lastOtpTickStatus="request_error";
   console.error("OTP_BACKGROUND_RUN_FAILED",JSON.stringify({reason:"request_error"}));
  }finally{
+  lastOtpTickAt=Date.now();
   clearTimeout(timeout);
   otpTickInFlight=false;
  }
