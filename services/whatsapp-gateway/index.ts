@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
-import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps } from "./receipt-rules";
+import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps, receiptCorrelationLockKey } from "./receipt-rules";
 const E=Bun.env, TOKEN=E.GATEWAY_TOKEN||"", PAIR=E.PAIRING_VIEW_KEY||"", ENC=E.SESSION_ENCRYPTION_KEY||"";
 if(!/^[a-f0-9]{64}$/i.test(ENC)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
 if(!E.DATABASE_URL||TOKEN.length<24||PAIR.length<24) throw new Error("Gateway configuration missing");
@@ -168,16 +168,21 @@ async function start(id:string){
  return {ok:true,state:"starting"};
  })();
  starts.set(id,task);
- try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
-}
-
-async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
+ try{return await task;}finally{if(starts.get(id)===tasync function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
- const prior=deliveryId?[]:await sql`SELECT otp_delivery_id FROM wa_message_receipts WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NOT NULL ORDER BY id LIMIT 1`;
- const linked=deliveryId||prior[0]?.otp_delivery_id||null;
- await sql`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
- if(deliveryId)await sql`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
+ // Serialize receipt persistence per (device, message). This closes the race where
+ // delivered reads "no delivery link", accepted links existing rows, and delivered
+ // inserts an unlinked row afterwards.
+ const lockKey=receiptCorrelationLockKey(deviceId,messageId);
+ await sql.begin(async tx=>{
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))`;
+  const prior=deliveryId?[]:await tx`SELECT otp_delivery_id FROM wa_message_receipts WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NOT NULL ORDER BY id LIMIT 1`;
+  const linked=deliveryId||prior[0]?.otp_delivery_id||null;
+  await tx`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
+  if(deliveryId)await tx`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
+ });
+}otp_delivery_id IS NULL`;
 }
 const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
