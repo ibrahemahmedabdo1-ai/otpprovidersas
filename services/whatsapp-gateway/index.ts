@@ -56,7 +56,7 @@ if(!devs.length){
  devs= d;
 }
 
- for(const d of devs)start(String(d.id)).catch((err:any)=>console.error("DEVICE_START_FAILED"));
+ for(const d of devs)start(String(d.id)).catch((err:any)=>console.error("DEVICE_START_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,160)})));
 }
 function json(x:any,s=200){return new Response(JSON.stringify(x),{status:s,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"}})}
 function auth(r:Request){const h=r.headers.get("authorization")||"";if(!h.startsWith("Bearer "))return false;const a=new TextEncoder().encode(h.slice(7)),b=new TextEncoder().encode(TOKEN);if(a.length!==b.length)return false;let d=0;for(let i=0;i<a.length;i++)d|=a[i]^b[i];return d===0}
@@ -303,14 +303,15 @@ async function runOtpBackgroundTick(){
 setTimeout(()=>void runOtpBackgroundTick(),15000);
 setInterval(()=>void runOtpBackgroundTick(),60000);
 
+let lockBusyLogged=false;
 async function acquireAndInit(){
  if(!ownsLock){
   const result=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton')) AS acquired`;
-  if(!result[0]?.acquired){setTimeout(()=>acquireAndInit().catch((err:any)=>console.error("GATEWAY_LOCK_RETRY_FAILED")),1000);return;}
-  ownsLock=true;
+  if(!result[0]?.acquired){if(!lockBusyLogged){console.warn("GATEWAY_LOCK_BUSY");lockBusyLogged=true;}setTimeout(()=>acquireAndInit().catch((err:any)=>console.error("GATEWAY_LOCK_RETRY_FAILED",String(err?.message||"unknown").slice(0,160))),5000);return;}
+  ownsLock=true;lockBusyLogged=false;console.log("GATEWAY_LOCK_ACQUIRED");
  }
- try{await initGateway();initialized=true;console.log("WhatsApp gateway initialization complete");}
- catch(err:any){console.error("GATEWAY_INIT_FAILED");setTimeout(()=>acquireAndInit().catch(()=>{}),5000);}
+ try{console.log("GATEWAY_INIT_START");await initGateway();initialized=true;console.log("GATEWAY_INIT_COMPLETE");}
+ catch(err:any){console.error("GATEWAY_INIT_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,180)}));setTimeout(()=>acquireAndInit().catch(()=>{}),5000);}
 }
 acquireAndInit().catch((err:any)=>console.error("GATEWAY_INIT_FAILED"));
 process.on("SIGTERM",async()=>{for(const sock of sockets.values())try{sock.end(undefined)}catch{};try{if(ownsLock)await owner`SELECT pg_advisory_unlock(hashtext('otpprovider:whatsapp-gateway:singleton'))`;}catch{}try{owner.release()}catch{}await sql.end();process.exit(0);});
