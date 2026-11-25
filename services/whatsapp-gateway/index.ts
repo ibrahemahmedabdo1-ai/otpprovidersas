@@ -102,7 +102,9 @@ async function start(id:string){
  sock.ev.on("creds.update",(update:any)=>{
   if(generations.get(id)!==token)return;
   if(update&&typeof update==="object")Object.assign(a.state.creds,update);
-  a.save().catch((e sock.ev.on("messages.update",(items:any[])=>{
+  a.save().catch((err:any)=>{console.error("AUTH_PERSIST_FAILED");if(generations.get(id)===token)live.set(id,{state:"error",qr:null,error:"auth_persist_failed"});});
+ });
+ sock.ev.on("messages.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
    if(!isOutgoingBaileysMessageKey(it?.key))continue;
@@ -117,9 +119,6 @@ async function start(id:string){
    for(const status of mapBaileysReceiptTimestamps(it?.receipt)){
     void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
    }
-  }
- });
-readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("connection.update",async(u:any)=>{
