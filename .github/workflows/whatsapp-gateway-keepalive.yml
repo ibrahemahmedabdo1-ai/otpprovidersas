@@ -24,8 +24,8 @@ jobs:
           url="https://whatsapp-linked-device-gateway-production.up.railway.app/health"
           for attempt in {1..10}; do
             response="$(curl --silent --show-error --max-time 15 --output /tmp/gateway-health.json --write-out '%{http_code}' "$url" || true)"
-            if [ "$response" = "200" ] && grep -q '"ready":true' /tmp/gateway-health.json; then
-              echo "WhatsApp gateway is healthy."
+            if [ "$response" = "200" ] && echo "$response" | jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' >/dev/null; then
+              echo "WhatsApp gateway is ready and its authenticated API tick succeeded."
               exit 0
             fi
             echo "Gateway not ready yet (HTTP ${response:-no-response}); retry ${attempt}/10."
