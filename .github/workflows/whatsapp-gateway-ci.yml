@@ -2,6 +2,7 @@ name: WhatsApp Gateway CI
 on:
   push:
     branches:
+      - main
       - fix/whatsapp-gateway-redaction-mainline
     paths:
       - "services/whatsapp-gateway/**"
@@ -17,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.21
+          bun-version: 1.4.1
       - name: Install dependencies
         working-directory: services/whatsapp-gateway
         run: bun install
