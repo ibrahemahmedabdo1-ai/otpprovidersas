@@ -342,7 +342,7 @@ async function acquireAndInit(){
   if(!result[0]?.acquired){if(!lockBusyLogged){console.warn("GATEWAY_LOCK_BUSY");lockBusyLogged=true;}setTimeout(()=>acquireAndInit().catch((err:any)=>console.error("GATEWAY_LOCK_RETRY_FAILED",String(err?.message||"unknown").slice(0,160))),5000);return;}
   ownsLock=true;lockBusyLogged=false;console.log("GATEWAY_LOCK_ACQUIRED");
  }
- try{console.log("GATEWAY_INIT_START");await initGateway();initialized=true;console.log("GATEWAY_INIT_COMPLETE");}
+ try{console.log("GATEWAY_INIT_START");await initGateway();initialized=true;console.log("GATEWAY_INIT_COMPLETE");void migrateOneLegacyAuthValue();}
  catch(err:any){console.error("GATEWAY_INIT_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,180)}));setTimeout(()=>acquireAndInit().catch(()=>{}),5000);}
 }
 acquireAndInit().catch((err:any)=>console.error("GATEWAY_INIT_FAILED"));
