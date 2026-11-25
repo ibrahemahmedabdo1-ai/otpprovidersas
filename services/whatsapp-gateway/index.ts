@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
+import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps } from "./receipt-rules";
 const E=Bun.env, TOKEN=E.GATEWAY_TOKEN||"", PAIR=E.PAIRING_VIEW_KEY||"", ENC=E.SESSION_ENCRYPTION_KEY||"";
 if(!/^[a-f0-9]{64}$/i.test(ENC)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
 if(!E.DATABASE_URL||TOKEN.length<24||PAIR.length<24) throw new Error("Gateway configuration missing");
@@ -14,7 +15,7 @@ async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
-await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','server_ack','delivered','read','played','error')),recipient_hash text,otp_delivery_id uuid,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
+await sql`CREATE TABLE IF NOT EXISTS wa_message_receipts(id bigserial PRIMARY KEY,device_id uuid NOT NULL,message_id text NOT NULL,status text NOT NULL CHECK (status IN ('accepted','pending','server_ack','delivered','read','played','error')),recipient_hash text,otp_delivery_id uuid,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(device_id,message_id,status))`;
 await sql`ALTER TABLE wa_message_receipts ADD COLUMN IF NOT EXISTS otp_delivery_id uuid`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_msg_idx ON wa_message_receipts(message_id)`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_delivery_status_idx ON wa_message_receipts(otp_delivery_id,status,created_at) WHERE otp_delivery_id IS NOT NULL`;
@@ -101,21 +102,24 @@ async function start(id:string){
  sock.ev.on("creds.update",(update:any)=>{
   if(generations.get(id)!==token)return;
   if(update&&typeof update==="object")Object.assign(a.state.creds,update);
-  a.save().catch((err:any)=>{console.error("AUTH_PERSIST_FAILED");if(generations.get(id)===token)live.set(id,{state:"error",qr:null,error:"auth_persist_failed"});});
- });
- sock.ev.on("messages.update",(items:any[])=>{
+  a.save().catch((e sock.ev.on("messages.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
-   const st=RECEIPT_STATUS[Number(it?.update?.status)];
-   if(it?.key?.fromMe&&it?.key?.id&&st)void recordReceipt(id,String(it.key.id),st,String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   const status=mapBaileysMessageStatus(it?.update?.status);
+   if(status)void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("message-receipt.update",(items:any[])=>{
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
-   const r=it?.receipt||{};
-   if(it?.key?.fromMe&&it?.key?.id&&r.receiptTimestamp)void recordReceipt(id,String(it.key.id),"delivered",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
-   if(it?.key?.fromMe&&it?.key?.id&&r.readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   for(const status of mapBaileysReceiptTimestamps(it?.receipt)){
+    void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+   }
+  }
+ });
+readTimestamp)void recordReceipt(id,String(it.key.id),"read",String(it.key.remoteJid||"")).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
  });
  sock.ev.on("connection.update",async(u:any)=>{
@@ -167,7 +171,7 @@ async function start(id:string){
  starts.set(id,task);
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
-const RECEIPT_STATUS:Record<number,string>={0:"error",2:"server_ack",3:"delivered",4:"read",5:"played"};
+
 async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
