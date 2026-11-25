@@ -27,3 +27,6 @@ jobs:
       - name: Build gateway
         working-directory: services/whatsapp-gateway
         run: bun run check
+      - name: Build the production Docker image
+        working-directory: services/whatsapp-gateway
+        run: docker build --tag otp-whatsapp-gateway:ci .
