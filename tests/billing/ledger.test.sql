@@ -3,11 +3,14 @@
 BEGIN;
 CREATE TEMP TABLE results(name text, ok boolean);
 DO $$
-DECLARE u uuid; o uuid; w uuid; p uuid; prov uuid; r uuid; d uuid; ok boolean; n bigint; wal wallets%ROWTYPE;
+DECLARE u uuid; o uuid; w uuid; u2 uuid; o2 uuid; w2 uuid; p uuid; prov uuid; r uuid; d uuid; ok boolean; n bigint; wal wallets%ROWTYPE;
 BEGIN
   INSERT INTO users(email,role,status,mfa_required) VALUES ('cust@test.dev','customer','active',false) RETURNING id INTO u;
   INSERT INTO organizations(name,owner_user_id) VALUES ('T',u) RETURNING id INTO o;
   INSERT INTO wallets(organization_id) VALUES (o) RETURNING id INTO w;
+  INSERT INTO users(email,role,status) VALUES ('cust2@test.dev','customer','active') RETURNING id INTO u2;
+  INSERT INTO organizations(name,owner_user_id) VALUES ('T2',u2) RETURNING id INTO o2;
+  INSERT INTO wallets(organization_id) VALUES (o2) RETURNING id INTO w2;
   INSERT INTO projects(organization_id,name) VALUES (o,'P') RETURNING id INTO p;
   INSERT INTO providers(key,channel,kind) VALUES ('resend','email','RESEND') RETURNING id INTO prov;
   INSERT INTO otp_requests(project_id,wallet_id,mode,channel,recipient_hash,recipient_encrypted,code_hash,max_attempts,expires_at,correlation_id)
@@ -25,6 +28,15 @@ BEGIN
   SELECT paid_micro_usd INTO n FROM wallets WHERE id=w;
   IF n <> 10000000 THEN RAISE EXCEPTION 'FAIL duplicate changed balance'; END IF;
   RAISE NOTICE 'PASS idempotent posting';
+
+  -- A delivery can only reserve against the wallet that owns its OTP request.
+  BEGIN
+    PERFORM reserve_for_delivery(w2,d,50000);
+    RAISE EXCEPTION 'FAIL cross-wallet reserve accepted';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  SELECT reserved_micro_usd INTO n FROM wallets WHERE id=w2;
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL cross-wallet reserve changed another wallet'; END IF;
+  RAISE NOTICE 'PASS cross-wallet reservation rejected';
 
   -- reserve, then charge only after delivered
   PERFORM reserve_for_delivery(w,d,50000);
@@ -47,6 +59,52 @@ BEGIN
   SELECT * INTO wal FROM wallets WHERE id=w;
   IF wal.paid_micro_usd <> 9950000 OR wal.reserved_micro_usd <> 0 THEN RAISE EXCEPTION 'FAIL charge math %/%', wal.paid_micro_usd, wal.reserved_micro_usd; END IF;
   RAISE NOTICE 'PASS charge once, duplicate billing prevented';
+
+  BEGIN
+    PERFORM charge_confirmed_delivery(w2,d,50000);
+    RAISE EXCEPTION 'FAIL cross-wallet charge accepted';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+  SELECT paid_micro_usd INTO n FROM wallets WHERE id=w2;
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL cross-wallet charge changed another wallet'; END IF;
+  RAISE NOTICE 'PASS cross-wallet charge rejected';
+
+  -- Zero-priced/free OTP: reserve, settle and retry without writing zero ledger rows.
+  INSERT INTO otp_deliveries(otp_request_id,provider_id,attempt_no) VALUES (r,prov,3) RETURNING id INTO d;
+  IF NOT reserve_for_delivery(w,d,0) THEN RAISE EXCEPTION 'FAIL free reservation'; END IF;
+  UPDATE otp_deliveries SET status='delivered' WHERE id=d;
+  IF NOT charge_confirmed_delivery(w,d,0) THEN RAISE EXCEPTION 'FAIL free delivery settlement'; END IF;
+  IF charge_confirmed_delivery(w,d,0) THEN RAISE EXCEPTION 'FAIL duplicate free settlement'; END IF;
+  SELECT * INTO wal FROM wallets WHERE id=w;
+  IF wal.paid_micro_usd <> 9950000 OR wal.reserved_micro_usd <> 0 THEN
+    RAISE EXCEPTION 'FAIL free delivery changed wallet balances %/%', wal.paid_micro_usd, wal.reserved_micro_usd;
+  END IF;
+  SELECT billed INTO ok FROM otp_deliveries WHERE id=d;
+  IF NOT ok THEN RAISE EXCEPTION 'FAIL free delivery not marked settled'; END IF;
+  SELECT count(*) INTO n FROM ledger_entries WHERE reference_type='otp_delivery' AND reference_id=d::text;
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL free delivery created ledger entries'; END IF;
+  RAISE NOTICE 'PASS free OTP settles once with no wallet movement or zero-value ledger row';
+
+  -- A failed free OTP has no reservation to release and must not change balances.
+  INSERT INTO otp_deliveries(otp_request_id,provider_id,attempt_no) VALUES (r,prov,4) RETURNING id INTO d;
+  IF NOT reserve_for_delivery(w,d,0) THEN RAISE EXCEPTION 'FAIL failed-free reservation'; END IF;
+  UPDATE otp_deliveries SET status='failed' WHERE id=d;
+  IF NOT release_failed_delivery(w,d,0) THEN RAISE EXCEPTION 'FAIL failed-free release'; END IF;
+  SELECT * INTO wal FROM wallets WHERE id=w;
+  IF wal.paid_micro_usd <> 9950000 OR wal.reserved_micro_usd <> 0 THEN
+    RAISE EXCEPTION 'FAIL failed free delivery changed wallet balances';
+  END IF;
+  RAISE NOTICE 'PASS failed free OTP does not create or release funds';
+
+  -- Negative delivery amounts are never accepted.
+  BEGIN
+    PERFORM reserve_for_delivery(w,d,-1);
+    RAISE EXCEPTION 'FAIL negative reserve accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+  BEGIN
+    PERFORM release_failed_delivery(w,d,-1);
+    RAISE EXCEPTION 'FAIL negative release accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+  RAISE NOTICE 'PASS negative delivery amounts rejected';
 
   -- overdraft rejected
   BEGIN PERFORM post_ledger_entry(w,'adjustment','paid',-99000000,'adj:over'); RAISE EXCEPTION 'FAIL overdraft allowed';
