@@ -16,6 +16,25 @@ async function encryptJson(v:any){return encryptJsonText(JSON.stringify(v,Buffer
 function normalizeEncryptedJson(v:any){if(typeof v!=="string")return "";let normalized=v;const q=String.fromCharCode(34);if(normalized.startsWith(q+"enc:v")&&normalized.endsWith(q)){try{normalized=JSON.parse(normalized);}catch{}}return normalized;}
 async function decryptJson(v:any){if(typeof v==="string"){const normalized=normalizeEncryptedJson(v);if(normalized.startsWith("enc:v1:")||normalized.startsWith("enc:v2:")){const parts=normalized.split(":");if(parts.length!==4)throw new Error("encrypted_session_invalid");const iv=new Uint8Array(Buffer.from(parts[2],"base64"));const data=new Uint8Array(Buffer.from(parts[3],"base64"));const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv},encKey,data);const decoded=normalized.startsWith("enc:v2:")?decompressAuthPayload(new Uint8Array(plain)):new TextDecoder().decode(plain);return JSON.parse(decoded,BufferJSON.reviver);}return decodeJson(normalized);}return decodeJson(v);}
 function isCompressedEncryptedJson(v:any){return normalizeEncryptedJson(v).startsWith("enc:v2:");}
+let authMigrationInFlight=false;
+async function migrateOneLegacyAuthValue(){
+ if(!initialized||!ownsLock||authMigrationInFlight)return;
+ authMigrationInFlight=true;
+ try{
+  const device=await sql`SELECT id FROM wa_gateway_devices ORDER BY created_at LIMIT 1`;
+  if(!device.length)return;
+  const id=String(device[0].id);
+  const rows=await sql`SELECT k,v FROM wa_gateway_kv WHERE k LIKE ${id+":%"} AND (v #>> '{}' LIKE 'enc:v1:%' OR v #>> '{}' LIKE '"enc:v1:%') ORDER BY pg_column_size(v) ASC LIMIT 1`;
+  if(!rows.length)return;
+  const row=rows[0];
+  const value=await decryptJson(row.v);
+  const compressed=await encryptJson(value);
+  const updated=await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(compressed)}::jsonb,updated_at=now() WHERE k=${row.k} AND v=${JSON.stringify(row.v)}::jsonb RETURNING k`;
+  if(updated.length)console.log("AUTH_COMPRESSION_MIGRATED_ONE",JSON.stringify({remainingCandidate:true}));
+ }catch(err:any){
+  console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,120)}));
+ }finally{authMigrationInFlight=false;}
+}
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
@@ -313,6 +332,8 @@ async function runOtpBackgroundTick(){
 }
 setTimeout(()=>void runOtpBackgroundTick(),15000);
 setInterval(()=>void runOtpBackgroundTick(),60000);
+setTimeout(()=>void migrateOneLegacyAuthValue(),45000);
+setInterval(()=>void migrateOneLegacyAuthValue(),300000);
 
 let lockBusyLogged=false;
 async function acquireAndInit(){
