@@ -10,7 +10,8 @@ const owner=await sql.reserve();
 const lease=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton')) AS acquired`;
 let ownsLock=!!lease[0]?.acquired, initialized=false, providerId="";
 const encKey=await crypto.subtle.importKey("raw",new Uint8Array(Buffer.from(ENC,"hex")),{name:"AES-GCM"},false,["encrypt","decrypt"]);
-async function encryptJson(v:any){const iv=crypto.getRandomValues(new Uint8Array(12));const data=new TextEncoder().encode(JSON.stringify(v,BufferJSON.replacer));const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},encKey,data);return "enc:v1:"+Buffer.from(iv).toString("base64")+":"+Buffer.from(new Uint8Array(encrypted)).toString("base64");}
+async function encryptJsonText(text:string){const iv=crypto.getRandomValues(new Uint8Array(12));const data=new TextEncoder().encode(text);const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},encKey,data);return "enc:v1:"+Buffer.from(iv).toString("base64")+":"+Buffer.from(new Uint8Array(encrypted)).toString("base64");}
+async function encryptJson(v:any){return encryptJsonText(JSON.stringify(v,BufferJSON.replacer));}
 async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const q=String.fromCharCode(34);if(normalized.startsWith(q+"enc:v1:")&&normalized.endsWith(q)){try{normalized=JSON.parse(normalized);}catch{}}if(normalized.startsWith("enc:v1:")){const parts=normalized.split(":");if(parts.length!==4)throw new Error("encrypted_session_invalid");const iv=new Uint8Array(Buffer.from(parts[2],"base64"));const data=new Uint8Array(Buffer.from(parts[3],"base64"));const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv},encKey,data);return JSON.parse(new TextDecoder().decode(plain),BufferJSON.reviver);}return decodeJson(normalized);}return decodeJson(v);}
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
@@ -49,8 +50,9 @@ for(const d of devs){
  for(const item of legacyKeys){
   const legacy=await sql`SELECT v FROM wa_gateway_kv WHERE k=${item.k}`;
   if(!legacy.length)continue;
-  const normalized=await decryptJson(legacy[0].v);
-  const encrypted=await encryptJson(normalized);
+  const raw=legacy[0].v;
+  const serialized=typeof raw==="string"?raw:JSON.stringify(raw,BufferJSON.replacer);
+  const encrypted=await encryptJsonText(serialized);
   await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(encrypted)}::jsonb,updated_at=now() WHERE k=${item.k}`;
  }
 }
