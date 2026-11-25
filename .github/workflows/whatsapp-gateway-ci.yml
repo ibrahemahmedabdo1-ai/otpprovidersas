@@ -21,6 +21,9 @@ jobs:
       - name: Install dependencies
         working-directory: services/whatsapp-gateway
         run: bun install
+      - name: Receipt event unit tests
+        working-directory: services/whatsapp-gateway
+        run: bun test
       - name: Build gateway
         working-directory: services/whatsapp-gateway
         run: bun run check
