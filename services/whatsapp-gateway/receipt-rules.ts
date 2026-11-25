@@ -55,3 +55,8 @@ export function mapBaileysReceiptTimestamps(receipt: unknown): WhatsAppReceiptSt
   if (value.playedTimestamp) statuses.push("played");
   return statuses;
 }
+
+/** Stable lock key for serializing receipt insertion/linking for one outgoing message. */
+export function receiptCorrelationLockKey(deviceId: string, messageId: string): string {
+  return "wa-receipt:" + JSON.stringify([deviceId, messageId]);
+}
