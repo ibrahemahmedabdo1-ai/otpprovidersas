@@ -1,39 +1,85 @@
 name: Housekeeping
-# Free scheduler for the serverless API and best-effort WhatsApp Gateway keepalive.
+# Free scheduler for the serverless API and WhatsApp Gateway keepalive.
+# The API tick and the Gateway check are independent jobs: one failing never skips the other,
+# and the final job fails the run if either failed, so a broken tick is never reported as green.
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: housekeeping
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
-  tick:
+  api:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: Call the API tick endpoint
-        id: api_tick
-        continue-on-error: true
+      - name: Authenticated API tick (with retry)
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           API_URL: ${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
         run: |
-          test -n "$CRON_SECRET" || { echo "CRON_SECRET not set"; exit 1; }
-          curl -fsS --max-time 60 -X POST -H "X-Cron-Secret: $CRON_SECRET" "$API_URL/v1/internal/tick"
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::GitHub secret CRON_SECRET is empty or missing."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            code="$(curl -sS -o body.json -w '%{http_code}' --connect-timeout 10 --max-time 60 -X POST -H "X-Cron-Secret: $CRON_SECRET" "$API_URL/v1/internal/tick" || echo 000)"
+            echo "attempt=$attempt http_status=$code"
+            if [ "$code" = "200" ]; then
+              jq -e '.ok == true' body.json >/dev/null && { echo "API tick OK"; exit 0; }
+              echo "::error::API answered 200 without ok=true"; exit 1
+            fi
+            if [ "$code" = "403" ] || [ "$code" = "401" ]; then
+              # Authentication problems are not transient: do not retry.
+              echo "::error::API rejected the cron secret (HTTP $code). GitHub CRON_SECRET does not match the API Production CRON_SECRET, or the API deployment is not using the current value."
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::API tick failed after retries (last HTTP status $code)."
+          exit 1
 
-      - name: Wake and health-check WhatsApp Gateway
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake and health-check WhatsApp Gateway (with retry)
         env:
           GATEWAY_URL: https://whatsapp-linked-device-gateway-production.up.railway.app
         run: |
-          if [ "${{ steps.api_tick.outcome }}" != "success" ]; then
-            echo "::warning::The API tick endpoint did not authenticate or respond successfully. Gateway keepalive will still run; verify GitHub CRON_SECRET matches the API production CRON_SECRET."
-          fi
           for attempt in 1 2 3 4; do
-            if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")"; then
-              echo "$response"
-              echo "$response" | jq -e '.ok == true' >/dev/null
+            if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")" && echo "$response" | jq -e '.ok == true' >/dev/null; then
+              echo "Gateway healthy"
               exit 0
             fi
-            echo "Gateway did not answer on attempt $attempt; retrying."
+            echo "Gateway not healthy on attempt $attempt; retrying."
             sleep 8
           done
-          echo "WhatsApp Gateway health check failed after retries."
+          echo "::error::WhatsApp Gateway health check failed after retries."
           exit 1
+
+  status:
+    needs: [api, gateway]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Final status
+        env:
+          API: ${{ needs.api.result }}
+          GATEWAY: ${{ needs.gateway.result }}
+        run: |
+          echo "API: $API"
+          echo "Gateway: $GATEWAY"
+          if [ "$API" = "success" ] && [ "$GATEWAY" = "success" ]; then
+            echo "Overall: SUCCESS"
+          elif [ "$API" != "success" ] && [ "$GATEWAY" != "success" ]; then
+            echo "Overall: FAILED"; exit 1
+          else
+            echo "Overall: PARTIAL"; exit 1
+          fi
