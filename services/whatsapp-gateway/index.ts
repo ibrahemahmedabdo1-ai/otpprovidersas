@@ -168,12 +168,13 @@ async function start(id:string){
  return {ok:true,state:"starting"};
  })();
  starts.set(id,task);
- try{return await task;}finally{if(starts.get(id)===tasync function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
+ try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
+}
+
+async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
- // Serialize receipt persistence per (device, message). This closes the race where
- // delivered reads "no delivery link", accepted links existing rows, and delivered
- // inserts an unlinked row afterwards.
+ // Serialize receipt persistence per (device, message) so accepted and delivery events cannot race.
  const lockKey=receiptCorrelationLockKey(deviceId,messageId);
  await sql.begin(async tx=>{
   await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey},0))`;
@@ -182,7 +183,6 @@ async function start(id:string){
   await tx`INSERT INTO wa_message_receipts(device_id,message_id,status,recipient_hash,otp_delivery_id) VALUES(${deviceId}::uuid,${messageId},${status},${h},${linked}::uuid) ON CONFLICT(device_id,message_id,status) DO UPDATE SET otp_delivery_id=COALESCE(wa_message_receipts.otp_delivery_id,EXCLUDED.otp_delivery_id)`;
   if(deliveryId)await tx`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
  });
-}otp_delivery_id IS NULL`;
 }
 const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
