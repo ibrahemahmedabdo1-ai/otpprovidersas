@@ -1,7 +1,6 @@
 name: Housekeeping
-# Free scheduler for the serverless API and WhatsApp Gateway keepalive.
-# The API tick and the Gateway check are independent jobs: one failing never skips the other,
-# and the final job fails the run if either failed, so a broken tick is never reported as green.
+# The Gateway owns the authenticated API tick. This workflow wakes it and verifies
+# that the gateway is initialized and its most recent API tick succeeded.
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -15,71 +14,21 @@ permissions:
   contents: read
 
 jobs:
-  api:
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    steps:
-      - name: Authenticated API tick (with retry)
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          API_URL: ${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
-        run: |
-          if [ -z "$CRON_SECRET" ]; then
-            echo "::error::GitHub secret CRON_SECRET is empty or missing."
-            exit 1
-          fi
-          for attempt in 1 2 3; do
-            code="$(curl -sS -o body.json -w '%{http_code}' --connect-timeout 10 --max-time 60 -X POST -H "X-Cron-Secret: $CRON_SECRET" "$API_URL/v1/internal/tick" || echo 000)"
-            echo "attempt=$attempt http_status=$code"
-            if [ "$code" = "200" ]; then
-              jq -e '.ok == true' body.json >/dev/null && { echo "API tick OK"; exit 0; }
-              echo "::error::API answered 200 without ok=true"; exit 1
-            fi
-            if [ "$code" = "403" ] || [ "$code" = "401" ]; then
-              # Authentication problems are not transient: do not retry.
-              echo "::error::API rejected the cron secret (HTTP $code). GitHub CRON_SECRET does not match the API Production CRON_SECRET, or the API deployment is not using the current value."
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
-          echo "::error::API tick failed after retries (last HTTP status $code)."
-          exit 1
-
   gateway:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Wake and health-check WhatsApp Gateway (with retry)
+      - name: Wake and verify WhatsApp Gateway and authenticated API tick
         env:
           GATEWAY_URL: https://whatsapp-linked-device-gateway-production.up.railway.app
         run: |
-          for attempt in 1 2 3 4; do
-            if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")" && echo "$response" | jq -e '.ok == true' >/dev/null; then
-              echo "Gateway healthy"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")" && echo "$response" | jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' >/dev/null; then
+              echo "Gateway ready and authenticated API tick succeeded."
               exit 0
             fi
-            echo "Gateway not healthy on attempt $attempt; retrying."
-            sleep 8
+            echo "Gateway or API tick not ready on attempt $attempt; retrying."
+            sleep 5
           done
-          echo "::error::WhatsApp Gateway health check failed after retries."
+          echo "::error::Gateway readiness or authenticated API tick check failed."
           exit 1
-
-  status:
-    needs: [api, gateway]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Final status
-        env:
-          API: ${{ needs.api.result }}
-          GATEWAY: ${{ needs.gateway.result }}
-        run: |
-          echo "API: $API"
-          echo "Gateway: $GATEWAY"
-          if [ "$API" = "success" ] && [ "$GATEWAY" = "success" ]; then
-            echo "Overall: SUCCESS"
-          elif [ "$API" != "success" ] && [ "$GATEWAY" != "success" ]; then
-            echo "Overall: FAILED"; exit 1
-          else
-            echo "Overall: PARTIAL"; exit 1
-          fi
