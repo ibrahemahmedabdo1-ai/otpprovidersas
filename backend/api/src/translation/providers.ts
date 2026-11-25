@@ -70,12 +70,12 @@ export class GoogleProvider implements TranslationProvider {
 /** Self-hosted LibreTranslate. No API key is required unless the instance enables authentication. */
 export class LibreTranslateProvider implements TranslationProvider {
   readonly key = "libretranslate" as const;
-  readonly marks: Marks = { esc: xmlEsc, unesc: xmlUnesc, mark: (i) => `<span translate="no">${i}</span>`, re: /<span translate="no">(\\d+)<\\/span>/g };
+  readonly marks: Marks = { esc: xmlEsc, unesc: xmlUnesc, mark: (i) => `<span translate="no">${i}</span>`, re: /<span translate="no">(\d+)<\/span>/g };
   constructor(private readonly baseUrl: string, private readonly apiKey = "", private readonly f: FetchLike = defaultFetch, private readonly timeoutMs = 12000) {}
   async translate(marked: string, target: Lang): Promise<ProviderResult> {
     const body: Record<string, string> = { q: marked, source: "auto", target: target === "zh" ? "zh" : target, format: "html" };
     if (this.apiKey) body.api_key = this.apiKey;
-    const res = await post(`${this.baseUrl.replace(/\\/+$/, "")}/translate`, {
+    const res = await post(`${this.baseUrl.replace(/\/+$/, "")}/translate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
