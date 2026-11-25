@@ -16,14 +16,16 @@ permissions:
 jobs:
   gateway:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - name: Wake and verify WhatsApp Gateway and authenticated API tick
         env:
           GATEWAY_URL: https://whatsapp-linked-device-gateway-production.up.railway.app
+        shell: bash
         run: |
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")" && echo "$response" | jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' >/dev/null; then
+          set -euo pipefail
+          for attempt in {1..10}; do
+            if response="$(curl -fsS --connect-timeout 8 --max-time 15 "$GATEWAY_URL/health")" && echo "$response" | jq -e '.ok == true and .ready == true and .apiTick.status == "ok"' >/dev/null; then
               echo "Gateway ready and authenticated API tick succeeded."
               exit 0
             fi
