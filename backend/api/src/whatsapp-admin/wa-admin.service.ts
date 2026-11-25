@@ -4,6 +4,7 @@ import type { AuthContext } from "../auth/auth.service";
 import { writeAudit } from "../common/audit";
 import { cleanIp } from "../common/ip";
 import { isMessageId, isRecipientAllowlisted, isUuid, maskRecipient, normalizeRecipient, parseAllowlist, validTestMessage } from "./wa-admin-util";
+import { classifyGatewayAnswer, staleTransition } from "./wa-test-job";
 
 type Res = { ok: boolean; status: number; json(): Promise<unknown> };
 type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<Res>;
@@ -49,25 +50,14 @@ export class WhatsAppAdminService {
     });
   }
 
-  private async auditTestSendResult(ctx: AuthContext, deviceId: string, ip: string | undefined, result: string, gatewayStatus?: number, messageId?: string | null) {
-    await this.db.tx(async (c) => writeAudit(c, {
-      actorId: ctx.userId,
-      action: "admin.whatsapp_test_send_result",
-      subjectType: "whatsapp_device",
-      subjectId: deviceId,
-      ip: cleanIp(ip),
-      meta: { result, ...(gatewayStatus === undefined ? {} : { gatewayStatus }), ...(messageId ? { messageId } : {}) },
-    }));
-  }
-
-  private async gateway(path: string, method: "GET" | "POST", body?: unknown) {
+  private async gateway(path: string, method: "GET" | "POST", body?: unknown, timeoutMs = 20_000) {
     const token = process.env.WA_GATEWAY_TOKEN;
     if (!token) throw new ServiceUnavailableException({ error: "gateway_token_not_configured" });
     const p = await this.db.pool.query("SELECT config->>'gateway_url' AS url FROM providers WHERE key='whatsapp_linked_device' LIMIT 1");
     const base = (p.rows[0]?.url as string | undefined) ?? "";
     if (!/^https:\/\/[a-z0-9.-]+$/i.test(base)) throw new ServiceUnavailableException({ error: "gateway_url_not_configured" });
     const ctl = new (globalThis as unknown as { AbortController: new () => { signal: AbortSignal; abort(): void } }).AbortController();
-    const timer = setTimeout(() => ctl.abort(), 20_000);
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
       const r = await this.fetchImpl(base + path, { method, headers: { authorization: "Bearer " + token, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal: ctl.signal });
       const data = await r.json().catch(() => ({}));
@@ -111,35 +101,101 @@ export class WhatsAppAdminService {
     });
   }
 
+  private jobView(row: Record<string, unknown>) {
+    const status = String(row.status);
+    return {
+      jobId: row.id as string,
+      requestId: row.request_id as string,
+      status,
+      messageId: (row.message_id as string | null) ?? null,
+      error: (row.error_code as string | null) ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      note: status === "accepted"
+        ? "Accepted by WhatsApp. This is NOT a delivery receipt: check receipts for the message."
+        : status === "unknown"
+          ? "The outcome could not be confirmed. The message may have been sent. Do NOT resend; check the receipts and the phone."
+          : undefined,
+    };
+  }
+
+  /** Compare-and-set so a job only ever moves forward and a late writer cannot overwrite a newer state. */
+  private async moveJob(jobId: string, from: string[], to: string, error: string | null) {
+    await this.db.pool.query(
+      "UPDATE wa_admin_test_jobs SET status=$3::text, error_code=$4::text, updated_at=now() WHERE id=$1::uuid AND status = ANY($2::text[])",
+      [jobId, from, to, error],
+    );
+  }
+
+  private async findJob(userId: string, requestId: string) {
+    const r = await this.db.pool.query("SELECT * FROM wa_admin_test_jobs WHERE requested_by=$1::uuid AND request_id=$2::uuid", [userId, requestId]);
+    return r.rows[0] as Record<string, unknown> | undefined;
+  }
+
+  /**
+   * Queue one test message and return immediately. Idempotent per (admin, requestId): replaying the same
+   * requestId returns the existing job and never reaches the gateway again, so a slow or retried request
+   * cannot produce a second WhatsApp message. A gateway timeout is never treated as a failed send.
+   */
   async testSend(ctx: AuthContext, body: unknown, ip?: string) {
     this.staff(ctx);
     const b = (body ?? {}) as Record<string, unknown>;
     const to = normalizeRecipient(b.to), message = validTestMessage(b.message);
-    if (!to || !message || !isUuid(b.deviceId)) throw new BadRequestException({ error: "validation_failed" });
+    if (!to || !message || !isUuid(b.deviceId) || !isUuid(b.requestId)) throw new BadRequestException({ error: "validation_failed" });
+    const deviceId = b.deviceId, requestId = b.requestId;
     const allow = parseAllowlist(process.env.WA_TEST_RECIPIENTS);
     if (allow.length === 0) throw new ServiceUnavailableException({ error: "recipient_allowlist_not_configured" });
     if (!isRecipientAllowlisted(to, allow)) throw new ForbiddenException({ error: "recipient_not_allowlisted" });
-    const slot = await this.reserveTestSend(ctx, b.deviceId, to, ip);
+
+    const replay = await this.findJob(ctx.userId, requestId);
+    if (replay) return this.jobView(replay);
+
+    const slot = await this.reserveTestSend(ctx, deviceId, to, ip);
     if (!slot.allowed) throw new HttpException({ error: "rate_limited", retryAfterSec: slot.retryAfterSec }, HttpStatus.TOO_MANY_REQUESTS);
 
-    let r: { status: number; data: Record<string, unknown> };
+    const inserted = await this.db.pool.query(
+      "INSERT INTO wa_admin_test_jobs(request_id, requested_by, device_id, recipient_masked) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::text) ON CONFLICT (requested_by, request_id) DO NOTHING RETURNING id",
+      [requestId, ctx.userId, deviceId, maskRecipient(to)],
+    );
+    if (!inserted.rows[0]) {
+      const raced = await this.findJob(ctx.userId, requestId);
+      if (raced) return this.jobView(raced);
+      throw new ConflictException({ error: "job_conflict" });
+    }
+    const jobId = inserted.rows[0].id as string;
+
     try {
-      r = await this.gateway("/admin/test-send", "POST", { to, deviceId: b.deviceId, message });
+      const r = await this.gateway("/admin/test-send", "POST", { to, deviceId, message, jobId }, 8_000);
+      const answer = classifyGatewayAnswer(r.status, r.data);
+      if (answer.action === "fail") await this.moveJob(jobId, ["queued"], "failed", answer.error);
     } catch (error) {
-      try { await this.auditTestSendResult(ctx, b.deviceId, ip, "transport_error"); }
-      catch { console.error("WHATSAPP_TEST_RESULT_AUDIT_FAILED"); }
-      throw error;
+      // Configuration errors mean the gateway was never contacted: nothing could have been sent.
+      const resp = error instanceof ServiceUnavailableException ? (error.getResponse() as { error?: string }) : undefined;
+      if (resp?.error === "gateway_token_not_configured" || resp?.error === "gateway_url_not_configured") {
+        await this.moveJob(jobId, ["queued"], "failed", resp.error);
+        throw error;
+      }
+      // Transport timeout or error: the gateway may already own the job. Leave it queued; never resend.
     }
-    const messageId = typeof r.data.messageId === "string" ? r.data.messageId : null;
-    try {
-      await this.auditTestSendResult(ctx, b.deviceId, ip, r.status === 202 ? "accepted" : "rejected", r.status, messageId);
-    } catch {
-      // The immutable attempt event was already committed before the gateway call.
-      // Do not turn a possibly accepted send into a retry-inducing HTTP failure.
-      console.error("WHATSAPP_TEST_RESULT_AUDIT_FAILED");
+    const row = await this.db.pool.query("SELECT * FROM wa_admin_test_jobs WHERE id=$1::uuid", [jobId]);
+    return this.jobView(row.rows[0] as Record<string, unknown>);
+  }
+
+  /** Poll a test-send job. Time-based rules close jobs the gateway never claimed or never finished. */
+  async testJob(ctx: AuthContext, jobId: string) {
+    this.staff(ctx);
+    if (!isUuid(jobId)) throw new BadRequestException({ error: "validation_failed" });
+    const q = "SELECT *, EXTRACT(EPOCH FROM (now() - updated_at))::int AS age_sec FROM wa_admin_test_jobs WHERE id=$1::uuid";
+    let r = await this.db.pool.query(q, [jobId]);
+    let row = r.rows[0] as Record<string, unknown> | undefined;
+    if (!row || (ctx.role !== "super_admin" && row.requested_by !== ctx.userId)) throw new NotFoundException({ error: "not_found" });
+    const t = staleTransition(String(row.status), Number(row.age_sec ?? 0));
+    if (t) {
+      await this.moveJob(jobId, [String(row.status)], t.to, t.error);
+      r = await this.db.pool.query(q, [jobId]);
+      row = r.rows[0] as Record<string, unknown>;
     }
-    if (r.status !== 202) throw new HttpException({ error: typeof r.data.error === "string" ? r.data.error : "gateway_rejected", status: r.status }, r.status >= 500 ? HttpStatus.BAD_GATEWAY : HttpStatus.CONFLICT);
-    return { accepted: true, messageId, note: "Accepted by WhatsApp. This is NOT a delivery receipt: check receipts for the message." };
+    return this.jobView(row);
   }
 
   async receipts(ctx: AuthContext, messageId: string) {

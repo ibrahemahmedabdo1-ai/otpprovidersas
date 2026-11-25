@@ -2,6 +2,7 @@ import postgres from "postgres";
 import { compressAuthPayload, decompressAuthPayload } from "./auth-compression";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
+import { classifyTestSendFailure, isNoOpenSession, isUuid, type TestSendStage } from "./test-send-rules";
 import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps, receiptCorrelationLockKey } from "./receipt-rules";
 const E=Bun.env, TOKEN=E.GATEWAY_TOKEN||"", PAIR=E.PAIRING_VIEW_KEY||"", ENC=E.SESSION_ENCRYPTION_KEY||"";
 if(!/^[a-f0-9]{64}$/i.test(ENC)) throw new Error("SESSION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters");
@@ -35,6 +36,7 @@ async function migrateOneLegacyAuthValue(){
   console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,120)}));
  }finally{authMigrationInFlight=false;}
 }
+const inflightDeliveries=new Set<string>();
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
@@ -64,6 +66,8 @@ let devs=await sql`SELECT id FROM wa_gateway_devices ORDER BY created_at`;
 let provider=await sql`SELECT id FROM providers WHERE key='whatsapp_linked_device' LIMIT 1`;
 if(!provider.length)provider=await sql`INSERT INTO providers(key,channel,kind,enabled,maintenance,priority,weight,config) VALUES('whatsapp_linked_device','whatsapp','PERSONAL_LINKED_DEVICE',false,false,100,0,'{"customer_sending_enabled":false,"delivery_receipts":"not_available"}'::jsonb) RETURNING id`;
 providerId=String(provider[0].id);
+// A job left in "sending" by a previous process may or may not have been transmitted: never resend, mark unknown.
+await sql`UPDATE wa_admin_test_jobs SET status='unknown',error_code='gateway_restarted',updated_at=now() WHERE status='sending'`.catch(()=>console.warn("TEST_JOB_RECOVERY_SKIPPED"));
 for(const d of devs){
  const old=await sql`SELECT label,creds FROM wa_gateway_devices WHERE id=${d.id}::uuid`;
  await sql`INSERT INTO whatsapp_devices(id,provider_id,label,state,routing_eligible) VALUES(${d.id}::uuid,${providerId}::uuid,${old[0]?.label||"WhatsApp Main"},'disconnected',false) ON CONFLICT(id) DO NOTHING`;
@@ -201,6 +205,43 @@ async function start(id:string){
  try{return await task;}finally{if(starts.get(id)===task)starts.delete(id);}
 }
 
+async function finishTestJob(jobId:string,status:string,messageId:string|null,error:string|null){
+ // Only a job still "sending" may be finished, so a late writer can never overwrite a newer state.
+ await sql`UPDATE wa_admin_test_jobs SET status=${status},message_id=${messageId},error_code=${error},updated_at=now() WHERE id=${jobId}::uuid AND status='sending'`;
+}
+/** Runs in the background after the HTTP request has already been answered. Never logs numbers or message text. */
+async function runAdminTestSend(jobId:string,id:string,s:any,to:string,msg:string){
+ let stage:TestSendStage="lookup";
+ try{
+  const pnJid=to+"@s.whatsapp.net";
+  let recipientJid=pnJid;
+  const lookup=await s.onWhatsApp(to);
+  if(!Array.isArray(lookup)||!lookup.some((item:any)=>item?.exists)){await finishTestJob(jobId,"failed",null,"recipient_not_registered_on_whatsapp");return;}
+  const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+  if(typeof mapped==="string"&&mapped.endsWith("@lid"))recipientJid=mapped;
+  stage="send";
+  let r:any;
+  try{r=await s.sendMessage(recipientJid,{text:msg});}
+  catch(err:any){
+   if(!isNoOpenSession(err))throw err;
+   // Nothing was transmitted: refresh only this recipient's Signal session once, then retry once.
+   stage="session_refresh";
+   const m=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+   await s.signalRepository.deleteSession([...new Set([pnJid,recipientJid,...(typeof m==="string"?[m]:[])])]);
+   console.warn("WHATSAPP_RECIPIENT_SIGNAL_SESSION_REFRESHED");
+   stage="send_after_refresh";
+   r=await s.sendMessage(typeof m==="string"?m:recipientJid,{text:msg});
+  }
+  const messageId=String(r?.key?.id||"");
+  if(!messageId){await finishTestJob(jobId,"unknown",null,"provider_message_id_missing");return;}
+  await recordReceipt(id,messageId,"accepted",to).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+  await finishTestJob(jobId,"accepted",messageId,null);
+ }catch{
+  const outcome=classifyTestSendFailure(stage);
+  console.error("WHATSAPP_TEST_JOB_FAILED",JSON.stringify({stage,status:outcome.status}));
+  await finishTestJob(jobId,outcome.status,null,outcome.error).catch(()=>console.error("WHATSAPP_TEST_JOB_STATE_WRITE_FAILED"));
+ }
+}
 async function recordReceipt(deviceId:string,messageId:string,status:string,to?:string,deliveryId?:string){
  if(!messageId||!status)return;
  const h=to?new Bun.CryptoHasher("sha256").update(to).digest("hex").slice(0,16):null;
@@ -235,46 +276,19 @@ const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch
  if(req.method==="DELETE"&&!m[2]){const s=sockets.get(id);if(s){try{await s.logout()}catch{}try{s.end(undefined)}catch{}}sockets.delete(id);live.delete(id);if(timers.has(id))clearTimeout(timers.get(id));await sql`DELETE FROM wa_gateway_kv WHERE k LIKE ${id+":%"}`;await sql`DELETE FROM wa_gateway_devices WHERE id=${id}::uuid`;await sql`DELETE FROM whatsapp_devices WHERE id=${id}::uuid`;return json({ok:true})}}
  if(req.method==="POST"&&p==="/admin/test-send"){
   if(E.WA_ADMIN_TEST_SEND_ENABLED!=="true")return json({error:"admin_test_sending_disabled"},423);
-  const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),s=sockets.get(id);
+  const b=await req.json().catch(()=>({})),to=String(b.to||"").replace(/\D/g,""),id=String(b.deviceId||""),msg=String(b.message||"").trim(),jobId=String(b.jobId||""),s=sockets.get(id);
+  if(!isUuid(jobId))return json({error:"invalid_job_id"},400);
   if(!allowed.includes(to)||to.length<8||to.length>15||!msg||msg.length>500)return json({error:"recipient_not_allowlisted_or_invalid"},400);
   if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
-
-  const pnJid=to+"@s.whatsapp.net";
-  let recipientJid=pnJid;
-  try {
-    const lookup=await s.onWhatsApp(to);
-    if(!Array.isArray(lookup)||!lookup.some((item:any)=>item?.exists))return json({error:"recipient_not_registered_on_whatsapp"},422);
-    const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
-    if(typeof mapped==="string"&&mapped.endsWith("@lid"))recipientJid=mapped;
-  } catch(err:any) {
-    console.error("WHATSAPP_RECIPIENT_LOOKUP_FAILED");
-    return json({error:"whatsapp_recipient_lookup_failed"},502);
+  // Exactly-once claim: only a queued job for this device can start sending, so a replay never sends twice.
+  const claimed=await sql`UPDATE wa_admin_test_jobs SET status='sending',updated_at=now() WHERE id=${jobId}::uuid AND device_id=${id}::uuid AND status='queued' RETURNING id`;
+  if(!claimed.length){
+   const current=await sql`SELECT status FROM wa_admin_test_jobs WHERE id=${jobId}::uuid`;
+   return current.length?json({jobId,status:current[0].status,duplicate:true},200):json({error:"job_not_found"},404);
   }
-
-  let r:any;
-  try {
-    r=await s.sendMessage(recipientJid,{text:msg});
-  } catch(err:any) {
-    const reason=String(err?.message||"");
-    if(reason.includes("No open session")) {
-      try {
-        const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
-        const targets=[pnJid,recipientJid,...(typeof mapped==="string"?[mapped]:[])];
-        await s.signalRepository.deleteSession([...new Set(targets)]);
-        console.warn("WHATSAPP_RECIPIENT_SIGNAL_SESSION_REFRESHED");
-        r=await s.sendMessage(typeof mapped==="string"?mapped:recipientJid,{text:msg});
-      } catch(refreshError:any) {
-        console.error("WHATSAPP_RECIPIENT_SIGNAL_SESSION_REFRESH_FAILED");
-        return json({error:"signal_session_refresh_failed",note:"A targeted refresh of the recipient Signal session was attempted once. Linked-device credentials and pairing data were preserved."},502);
-      }
-    } else {
-      console.error("WHATSAPP_TEST_SEND_FAILED");
-      return json({error:"whatsapp_test_send_failed"},502);
-    }
-  }
-  if(r?.key?.id)await recordReceipt(id,String(r.key.id),"accepted",to);
-  return json({accepted:true,messageId:r?.key?.id||null,note:"Accepted by WhatsApp; not a delivery receipt."},202);
-}
+  void runAdminTestSend(jobId,id,s,to,msg);
+  return json({jobId,status:"sending"},202);
+ }
  if(req.method==="POST"&&p==="/v1/send"){
   if(E.WA_CUSTOMER_SEND_ENABLED!=="true")return json({error:"customer_sending_disabled"},423);
   const b=await req.json().catch(()=>({}));
@@ -284,6 +298,13 @@ const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch
   if(!eligible.length)return json({error:"delivery_or_device_not_eligible"},409);
   const s=sockets.get(id);
   if(!s||live.get(id)?.state!=="connected")return json({error:"device_not_connected"},503);
+  // One WhatsApp submission per delivery: refuse if one is in flight or a receipt already exists. 503 (not 4xx) so the API
+  // keeps the delivery "unknown" and waits for receipts instead of releasing funds for a message that may have been sent.
+  if(inflightDeliveries.has(deliveryId))return json({error:"delivery_already_submitted"},503);
+  const prior=await sql`SELECT 1 FROM wa_message_receipts WHERE otp_delivery_id=${deliveryId}::uuid LIMIT 1`;
+  if(prior.length)return json({error:"delivery_already_submitted"},503);
+  inflightDeliveries.add(deliveryId);
+  try{
   const pnJid=to+"@s.whatsapp.net";
   let recipientJid=pnJid;
   try{
@@ -299,6 +320,7 @@ const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch
   if(!messageId)return json({error:"provider_message_id_missing"},502);
   await recordReceipt(id,messageId,"accepted",to,deliveryId);
   return json({accepted:true,messageId,note:"Accepted by WhatsApp; awaiting explicit delivery receipt."},202);
+  }finally{inflightDeliveries.delete(deliveryId);}
  }
  return json({error:"not_found"},404);
 }});
