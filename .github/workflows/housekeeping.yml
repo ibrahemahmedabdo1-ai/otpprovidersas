@@ -10,6 +10,8 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Call the API tick endpoint
+        id: api_tick
+        continue-on-error: true
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           API_URL: ${{ vars.API_BASE_URL || 'https://otpprovider-launch-api.vercel.app' }}
@@ -21,6 +23,9 @@ jobs:
         env:
           GATEWAY_URL: https://whatsapp-linked-device-gateway-production.up.railway.app
         run: |
+          if [ "${{ steps.api_tick.outcome }}" != "success" ]; then
+            echo "::warning::The API tick endpoint did not authenticate or respond successfully. Gateway keepalive will still run; verify GitHub CRON_SECRET matches the API production CRON_SECRET."
+          fi
           for attempt in 1 2 3 4; do
             if response="$(curl -fsS --connect-timeout 10 --max-time 20 "$GATEWAY_URL/health")"; then
               echo "$response"
