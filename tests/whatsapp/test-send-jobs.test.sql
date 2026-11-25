@@ -5,7 +5,7 @@ DECLARE
   v_user uuid; v_request uuid := gen_random_uuid(); v_device uuid := gen_random_uuid();
   v_job uuid; v_job2 uuid; v_claimed int; v_status text;
 BEGIN
-  INSERT INTO users(email,role,status) VALUES ('wa-job-test@x.co','admin_staff','active') RETURNING id INTO v_user;
+  INSERT INTO users(email,role,status) VALUES ('wa-job-test@x.co','customer','active') RETURNING id INTO v_user;
 
   INSERT INTO wa_admin_test_jobs(request_id,requested_by,device_id,recipient_masked)
     VALUES (v_request,v_user,v_device,'***7964') RETURNING id INTO v_job;
