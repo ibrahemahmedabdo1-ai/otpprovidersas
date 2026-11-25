@@ -184,7 +184,7 @@ async function recordReceipt(deviceId:string,messageId:string,status:string,to?:
   if(deliveryId)await tx`UPDATE wa_message_receipts SET otp_delivery_id=${deliveryId}::uuid WHERE device_id=${deviceId}::uuid AND message_id=${messageId} AND otp_delivery_id IS NULL`;
  });
 }
-const server=Bun.serve({port:Number(E.PORT||8080),async fetch(req){
+const server=Bun.serve({hostname:"0.0.0.0",port:Number(E.PORT||8080),async fetch(req){
  const u=new URL(req.url),p=u.pathname,base="/pair/"+PAIR;
  if(req.method==="GET"&&(p==="/"||p==="/health"))return json({ok:true,service:"otp-whatsapp-gateway",devices:sockets.size,ready:initialized});
  if(!ownsLock||!initialized)return json({error:"gateway_initializing"},503);
