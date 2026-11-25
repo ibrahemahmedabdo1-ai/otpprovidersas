@@ -45,8 +45,14 @@ for(const d of devs){
  const old=await sql`SELECT label,creds FROM wa_gateway_devices WHERE id=${d.id}::uuid`;
  await sql`INSERT INTO whatsapp_devices(id,provider_id,label,state,routing_eligible) VALUES(${d.id}::uuid,${providerId}::uuid,${old[0]?.label||"WhatsApp Main"},'disconnected',false) ON CONFLICT(id) DO NOTHING`;
  if(old[0]?.creds){const raw=old[0].creds;const normalized=await decryptJson(raw);if(typeof raw!=="string"||!raw.startsWith("enc:v1:"))await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(normalized))}::jsonb WHERE id=${d.id}::uuid`;}
- const legacyKeys=await sql`SELECT k,v FROM wa_gateway_kv WHERE k LIKE ${String(d.id)+":%"}`;
- for(const kv of legacyKeys)if(typeof kv.v!=="string"||!kv.v.startsWith("enc:v1:"))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(decodeJson(kv.v)))}::jsonb,updated_at=now() WHERE k=${kv.k}`;
+ const legacyKeys=await sql`SELECT k FROM wa_gateway_kv WHERE k LIKE ${String(d.id)+":%"} AND (jsonb_typeof(v) <> 'string' OR v #>> '{}' NOT LIKE 'enc:v1:%') ORDER BY k`;
+ for(const item of legacyKeys){
+  const legacy=await sql`SELECT v FROM wa_gateway_kv WHERE k=${item.k}`;
+  if(!legacy.length)continue;
+  const normalized=await decryptJson(legacy[0].v);
+  const encrypted=await encryptJson(normalized);
+  await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(encrypted)}::jsonb,updated_at=now() WHERE k=${item.k}`;
+ }
 }
 if(!devs.length){
  const old=await sql`SELECT creds FROM wa_gateway_state WHERE id=1`.catch(()=>[]);
