@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { compressAuthPayload, decompressAuthPayload } from "./auth-compression";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps, receiptCorrelationLockKey } from "./receipt-rules";
@@ -10,10 +11,12 @@ const owner=await sql.reserve();
 const lease=await owner`SELECT pg_try_advisory_lock(hashtext('otpprovider:whatsapp-gateway:singleton:v2')) AS acquired`;
 let ownsLock=!!lease[0]?.acquired, initialized=false, providerId="";
 const encKey=await crypto.subtle.importKey("raw",new Uint8Array(Buffer.from(ENC,"hex")),{name:"AES-GCM"},false,["encrypt","decrypt"]);
-async function encryptJsonText(text:string){const iv=crypto.getRandomValues(new Uint8Array(12));const data=new TextEncoder().encode(text);const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},encKey,data);return "enc:v1:"+Buffer.from(iv).toString("base64")+":"+Buffer.from(new Uint8Array(encrypted)).toString("base64");}
+async function encryptJsonText(text:string){const iv=crypto.getRandomValues(new Uint8Array(12));const data=compressAuthPayload(text);const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv},encKey,data);return "enc:v2:"+Buffer.from(iv).toString("base64")+":"+Buffer.from(new Uint8Array(encrypted)).toString("base64");}
 async function encryptJson(v:any){return encryptJsonText(JSON.stringify(v,BufferJSON.replacer));}
-async function decryptJson(v:any){if(typeof v==="string"){let normalized=v;const q=String.fromCharCode(34);if(normalized.startsWith(q+"enc:v1:")&&normalized.endsWith(q)){try{normalized=JSON.parse(normalized);}catch{}}if(normalized.startsWith("enc:v1:")){const parts=normalized.split(":");if(parts.length!==4)throw new Error("encrypted_session_invalid");const iv=new Uint8Array(Buffer.from(parts[2],"base64"));const data=new Uint8Array(Buffer.from(parts[3],"base64"));const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv},encKey,data);return JSON.parse(new TextDecoder().decode(plain),BufferJSON.reviver);}return decodeJson(normalized);}return decodeJson(v);}
-function isEncryptedJson(v:any){return typeof v==="string"&&(v.startsWith("enc:v1:")||(v.startsWith(String.fromCharCode(34)+"enc:v1:")&&v.endsWith(String.fromCharCode(34))));}
+function normalizeEncryptedJson(v:any){if(typeof v!=="string")return "";let normalized=v;const q=String.fromCharCode(34);if(normalized.startsWith(q+"enc:v")&&normalized.endsWith(q)){try{normalized=JSON.parse(normalized);}catch{}}return normalized;}
+async function decryptJson(v:any){if(typeof v==="string"){const normalized=normalizeEncryptedJson(v);if(normalized.startsWith("enc:v1:")||normalized.startsWith("enc:v2:")){const parts=normalized.split(":");if(parts.length!==4)throw new Error("encrypted_session_invalid");const iv=new Uint8Array(Buffer.from(parts[2],"base64"));const data=new Uint8Array(Buffer.from(parts[3],"base64"));const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv},encKey,data);const decoded=normalized.startsWith("enc:v2:")?decompressAuthPayload(new Uint8Array(plain)):new TextDecoder().decode(plain);return JSON.parse(decoded,BufferJSON.reviver);}return decodeJson(normalized);}return decodeJson(v);}
+function isEncryptedJson(v:any){const normalized=normalizeEncryptedJson(v);return normalized.startsWith("enc:v1:")||normalized.startsWith("enc:v2:");}
+function isCompressedEncryptedJson(v:any){return normalizeEncryptedJson(v).startsWith("enc:v2:");}
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
 const allowed=(E.WA_TEST_RECIPIENTS||"").split(",").map(x=>x.replace(/\D/g,"")).filter(Boolean);
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_devices(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),label text NOT NULL,state text NOT NULL DEFAULT 'disconnected',creds jsonb,qr_data_url text,last_activity_at timestamptz,last_error text,created_at timestamptz NOT NULL DEFAULT now())`;
@@ -46,8 +49,8 @@ providerId=String(provider[0].id);
 for(const d of devs){
  const old=await sql`SELECT label,creds FROM wa_gateway_devices WHERE id=${d.id}::uuid`;
  await sql`INSERT INTO whatsapp_devices(id,provider_id,label,state,routing_eligible) VALUES(${d.id}::uuid,${providerId}::uuid,${old[0]?.label||"WhatsApp Main"},'disconnected',false) ON CONFLICT(id) DO NOTHING`;
- if(old[0]?.creds){const raw=old[0].creds;const normalized=await decryptJson(raw);if(!isEncryptedJson(raw))await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(normalized))}::jsonb WHERE id=${d.id}::uuid`;}
- const legacyKeys=await sql`SELECT k FROM wa_gateway_kv WHERE k LIKE ${String(d.id)+":%"} AND (jsonb_typeof(v) <> 'string' OR (v #>> '{}' NOT LIKE 'enc:v1:%' AND v #>> '{}' NOT LIKE '"enc:v1:%')) ORDER BY k`;
+ if(old[0]?.creds){const raw=old[0].creds;const normalized=await decryptJson(raw);if(!isCompressedEncryptedJson(raw))await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(normalized))}::jsonb WHERE id=${d.id}::uuid`;}
+ const legacyKeys=await sql`SELECT k FROM wa_gateway_kv WHERE k LIKE ${String(d.id)+":%"} AND (jsonb_typeof(v) <> 'string' OR (v #>> '{}' NOT LIKE 'enc:v1:%' AND v #>> '{}' NOT LIKE 'enc:v2:%' AND v #>> '{}' NOT LIKE '"enc:v1:%' AND v #>> '{}' NOT LIKE '"enc:v2:%')) ORDER BY k`;
  for(const item of legacyKeys){
   const legacy=await sql`SELECT v FROM wa_gateway_kv WHERE k=${item.k}`;
   if(!legacy.length)continue;
@@ -79,7 +82,7 @@ async function authState(id:string){
   await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(creds))}::jsonb WHERE id=${id}::uuid`;
  }
  const keys={
-  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(!isEncryptedJson(r.v))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(v))}::jsonb,updated_at=now() WHERE k=${r.k}`;if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
+  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(!isCompressedEncryptedJson(r.v))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(v))}::jsonb,updated_at=now() WHERE k=${r.k}`;if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
   async set(data:any){await sql.begin(async tx=>{for(const [type,entries] of Object.entries(data) as any)for(const [k,v] of Object.entries(entries) as any){const key=id+":"+type+":"+k;if(v==null)await tx`DELETE FROM wa_gateway_kv WHERE k=${key}`;else await tx`INSERT INTO wa_gateway_kv(k,v,updated_at) VALUES(${key},${JSON.stringify(await encryptJson(v))}::jsonb,now()) ON CONFLICT(k) DO UPDATE SET v=EXCLUDED.v,updated_at=now()`;}})}
  };
  let saveQueue=Promise.resolve();
