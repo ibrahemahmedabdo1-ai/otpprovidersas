@@ -2,8 +2,6 @@ name: Housekeeping
 # The Gateway owns the authenticated API tick. This workflow wakes it and verifies
 # that the gateway is initialized and its most recent API tick succeeded.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 concurrency:
