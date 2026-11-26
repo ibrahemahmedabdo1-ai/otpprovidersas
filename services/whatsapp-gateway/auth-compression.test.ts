@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compressAuthPayload, decompressAuthPayload } from "./auth-compression";
+import { compressAuthPayload, decompressAuthPayload, isDeterministicAuthPayloadError } from "./auth-compression";
 
 test("compressed auth payload round-trips structured JSON", () => {
   const input = JSON.stringify({
@@ -19,4 +19,13 @@ test("compressed auth payload preserves UTF-8 and empty values", () => {
   for (const input of ["", "جلسة واتساب آمنة 🔐", JSON.stringify({ value: "é漢字🙂" })]) {
     expect(decompressAuthPayload(compressAuthPayload(input))).toBe(input);
   }
+});
+
+
+test("only deterministic payload corruption is quarantinable", () => {
+  expect(isDeterministicAuthPayloadError(new SyntaxError("bad json"))).toBe(true);
+  expect(isDeterministicAuthPayloadError({ code: "Z_DATA_ERROR" })).toBe(true);
+  expect(isDeterministicAuthPayloadError({ message: "encrypted_session_invalid" })).toBe(true);
+  expect(isDeterministicAuthPayloadError({ name: "OperationError", message: "The operation failed" })).toBe(false);
+  expect(isDeterministicAuthPayloadError({ code: "ECONNRESET" })).toBe(false);
 });
