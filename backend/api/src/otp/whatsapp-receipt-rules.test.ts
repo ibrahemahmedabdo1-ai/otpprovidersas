@@ -25,5 +25,5 @@ test("the query shipped in the service is the exact query exercised by the SQL t
   const m = sql.match(/-- BEGIN unbilled-delivered-query\s+SELECT array_agg\(q\.otp_delivery_id\) INTO v_found FROM \(\s*([\s\S]*?)\s*\) q;\s+-- END unbilled-delivered-query/);
   assert.ok(m, "marked query not found in the SQL test");
   const norm = (t: string) => t.replace(/\s+/g, " ").trim();
-  assert.equal(norm(m[1]), norm(UNBILLED_DELIVERED_RECEIPTS_SQL));
+  assert.equal(norm(m[1] ?? ""), norm(UNBILLED_DELIVERED_RECEIPTS_SQL));
 });
