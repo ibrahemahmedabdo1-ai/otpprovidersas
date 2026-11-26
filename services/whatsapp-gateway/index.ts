@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { compressAuthPayload, decompressAuthPayload } from "./auth-compression";
+import { compressAuthPayload, decompressAuthPayload, isDeterministicAuthPayloadError } from "./auth-compression";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import { baileysReceiptRecipient, isOutgoingBaileysMessageKey, mapBaileysMessageStatus, mapBaileysReceiptTimestamps, receiptCorrelationLockKey } from "./receipt-rules";
@@ -21,18 +21,54 @@ async function migrateOneLegacyAuthValue(){
  if(!initialized||!ownsLock||authMigrationInFlight)return;
  authMigrationInFlight=true;
  try{
-  const device=await sql`SELECT id FROM wa_gateway_devices ORDER BY created_at LIMIT 1`;
-  if(!device.length)return;
-  const id=String(device[0].id);
-  const rows=await sql`SELECT k,v FROM wa_gateway_kv WHERE k LIKE ${id+":%"} AND (v #>> '{}' LIKE 'enc:v1:%' OR v #>> '{}' LIKE '"enc:v1:%') ORDER BY pg_column_size(v) ASC LIMIT 1`;
+  const rows=await sql`SELECT kv.k,kv.v
+   FROM wa_gateway_kv kv
+   WHERE EXISTS (SELECT 1 FROM wa_gateway_devices d WHERE kv.k LIKE d.id::text || ':%')
+     AND (kv #>> '{}' LIKE 'enc:v1:%' OR kv #>> '{}' LIKE '"enc:v1:%')
+     AND NOT EXISTS (
+       SELECT 1 FROM wa_gateway_auth_migration_failures f
+       WHERE f.k=kv.k AND f.quarantined=true
+     )
+   ORDER BY pg_column_size(kv.v) ASC
+   LIMIT 1`;
   if(!rows.length)return;
   const row=rows[0];
-  const value=await decryptJson(row.v);
+  let value:any;
+  try{
+   value=await decryptJson(row.v);
+  }catch(err:any){
+   const deterministic=isDeterministicAuthPayloadError(err);
+   if(!deterministic){
+    console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({stage:"decrypt",kind:"non_deterministic_or_key_error",name:err?.name,code:err?.code}));
+    return;
+   }
+   const code=String(err?.code||err?.message||err?.name||"payload_invalid").slice(0,80);
+   const failure=await sql`INSERT INTO wa_gateway_auth_migration_failures(k,attempts,last_error_code,last_failed_at,quarantined)
+    VALUES(${row.k},1,${code},now(),false)
+    ON CONFLICT(k) DO UPDATE SET
+      attempts=wa_gateway_auth_migration_failures.attempts+1,
+      last_error_code=EXCLUDED.last_error_code,
+      last_failed_at=now(),
+      quarantined=wa_gateway_auth_migration_failures.quarantined OR wa_gateway_auth_migration_failures.attempts+1>=3
+    RETURNING attempts,quarantined`;
+   console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({stage:"decrypt",code,attempts:failure[0]?.attempts,quarantined:failure[0]?.quarantined===true}));
+   return;
+  }
   const compressed=await encryptJson(value);
-  const updated=await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(compressed)}::jsonb,updated_at=now() WHERE k=${row.k} AND v=${JSON.stringify(row.v)}::jsonb RETURNING k`;
-  if(updated.length)console.log("AUTH_COMPRESSION_MIGRATED_ONE",JSON.stringify({remainingCandidate:true}));
+  const verified=await decryptJson(compressed);
+  const expected=JSON.stringify(value,BufferJSON.replacer);
+  const actual=JSON.stringify(verified,BufferJSON.replacer);
+  if(actual!==expected)throw new Error("auth_compression_roundtrip_mismatch");
+  const updated=await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(compressed)}::jsonb,updated_at=now()
+   WHERE k=${row.k} AND v=${JSON.stringify(row.v)}::jsonb RETURNING k`;
+  if(updated.length){
+   await sql`DELETE FROM wa_gateway_auth_migration_failures WHERE k=${row.k}`;
+   console.log("AUTH_COMPRESSION_MIGRATED_ONE",JSON.stringify({updated:true}));
+  }else{
+   console.warn("AUTH_COMPRESSION_MIGRATION_CAS_MISS",JSON.stringify({updated:false}));
+  }
  }catch(err:any){
-  console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,120)}));
+  console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({stage:"migration",name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,120)}));
  }finally{authMigrationInFlight=false;}
 }
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
@@ -43,6 +79,13 @@ await sql`ALTER TABLE wa_message_receipts ADD COLUMN IF NOT EXISTS otp_delivery_
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_msg_idx ON wa_message_receipts(message_id)`;
 await sql`CREATE INDEX IF NOT EXISTS wa_message_receipts_delivery_status_idx ON wa_message_receipts(otp_delivery_id,status,created_at) WHERE otp_delivery_id IS NOT NULL`;
 await sql`CREATE TABLE IF NOT EXISTS wa_gateway_kv(k text PRIMARY KEY,v jsonb NOT NULL,updated_at timestamptz NOT NULL DEFAULT now())`;
+await sql`CREATE TABLE IF NOT EXISTS wa_gateway_auth_migration_failures(
+ k text PRIMARY KEY,
+ attempts integer NOT NULL DEFAULT 0 CHECK (attempts>=0),
+ last_error_code text NOT NULL,
+ last_failed_at timestamptz NOT NULL DEFAULT now(),
+ quarantined boolean NOT NULL DEFAULT false
+)`;
 function decodeJson(v:any):any{
  if(v==null)return v;
  const parsed=typeof v==="string"?JSON.parse(v):v;
