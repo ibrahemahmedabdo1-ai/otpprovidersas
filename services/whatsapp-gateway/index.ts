@@ -24,7 +24,7 @@ async function migrateOneLegacyAuthValue(){
   const rows=await sql`SELECT kv.k,kv.v
    FROM wa_gateway_kv kv
    WHERE EXISTS (SELECT 1 FROM wa_gateway_devices d WHERE kv.k LIKE d.id::text || ':%')
-     AND (kv #>> '{}' LIKE 'enc:v1:%' OR kv #>> '{}' LIKE '"enc:v1:%')
+     AND (kv.v #>> '{}' LIKE 'enc:v1:%' OR kv.v #>> '{}' LIKE '"enc:v1:%')
      AND NOT EXISTS (
        SELECT 1 FROM wa_gateway_auth_migration_failures f
        WHERE f.k=kv.k AND f.quarantined=true
