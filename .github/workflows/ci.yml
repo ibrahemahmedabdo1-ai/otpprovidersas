@@ -145,6 +145,8 @@ jobs:
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
       - name: WhatsApp receipt correlation SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/receipt-correlation.test.sql
+      - name: Gateway auth migration CAS SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/auth-migration-cas.test.sql
       - name: Reconciliation SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/reconciliation.test.sql
       - name: Auth SQL tests
