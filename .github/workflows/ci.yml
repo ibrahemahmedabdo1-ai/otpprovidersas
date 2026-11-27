@@ -139,6 +139,8 @@ jobs:
           node-version: 22
       - name: Apply migrations
         run: node scripts/migrate.mjs
+      - name: Gateway schema drift check
+        run: node scripts/check-gateway-schema-drift.mjs
       - name: Ledger and constraint tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
       - name: WhatsApp receipt correlation SQL tests
