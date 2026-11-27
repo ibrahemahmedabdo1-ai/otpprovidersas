@@ -514,6 +514,14 @@ paths:
         "200": {description: OK}
         "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/storage-health:
+    get:
+      tags: ["Admin"]
+      summary: "Read-only size of the WhatsApp session store with alerts above 100 MB (table) or 5 MB (one value). Sizes only (Admin / Super Admin)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      responses:
+        "200": {description: OK}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/admin/whatsapp/devices/{deviceId}/routing:
     patch:
       tags: ["Admin"]
