@@ -543,14 +543,37 @@ paths:
   /v1/admin/whatsapp/test-send:
     post:
       tags: ["Admin"]
-      summary: "Send one test message to an allow-listed recipient. Accepted is not delivered."
+      summary: "Queue one test message to an allow-listed recipient and return a job id immediately. Idempotent per requestId. Accepted is not delivered."
       security: [{sessionCookie: []}, {bearerSession: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, deviceId, message, requestId]
+              properties:
+                to: {type: string}
+                deviceId: {type: string, format: uuid}
+                message: {type: string, maxLength: 200}
+                requestId: {type: string, format: uuid, description: "Client-generated idempotency key; replays return the same job and never send twice"}
       responses:
-        "202": {description: Accepted by WhatsApp}
+        "202": {description: "Job queued or replayed. status is one of queued, sending, accepted, failed, unknown"}
         "400": {description: Validation failed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "403": {description: Not allowed or recipient not allow-listed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "429": {description: Rate limited, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
         "503": {description: Gateway unavailable or not configured, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /v1/admin/whatsapp/test-jobs/{jobId}:
+    get:
+      tags: ["Admin"]
+      summary: "Status of a queued WhatsApp test send (queued, sending, accepted, failed, unknown)"
+      security: [{sessionCookie: []}, {bearerSession: []}]
+      parameters: [{name: jobId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: OK}
+        "400": {description: Validation failed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "403": {description: Not allowed, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "404": {description: Job not found, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
   /v1/admin/whatsapp/receipts/{messageId}:
     get:
       tags: ["Admin"]

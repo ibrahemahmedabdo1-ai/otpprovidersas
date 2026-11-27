@@ -10,6 +10,7 @@ export class WhatsAppAdminController {
   @Get("devices") devices(@Req() req: AuthedRequest) { return this.wa.devices(req.auth!); }
   @Patch("devices/:deviceId/routing") setRouting(@Param("deviceId") id: string, @Body() body: unknown, @Req() req: AuthedRequest) { return this.wa.setRouting(req.auth!, id, body, req.ip); }
   @Post("test-send") @HttpCode(202) testSend(@Body() body: unknown, @Req() req: AuthedRequest) { return this.wa.testSend(req.auth!, body, req.ip); }
+  @Get("test-jobs/:jobId") testJob(@Param("jobId") id: string, @Req() req: AuthedRequest) { return this.wa.testJob(req.auth!, id); }
   @Get("storage-health") storageHealth(@Req() req: AuthedRequest) { return this.wa.kvHealth(req.auth!); }
   @Get("receipts/:messageId") receipts(@Param("messageId") id: string, @Req() req: AuthedRequest) { return this.wa.receipts(req.auth!, id); }
 }
