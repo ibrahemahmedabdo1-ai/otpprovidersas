@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: ci-only-password
           POSTGRES_DB: otp_test
@@ -139,12 +139,18 @@ jobs:
           node-version: 22
       - name: Apply migrations
         run: node scripts/migrate.mjs
+      - name: Gateway schema drift check
+        run: node scripts/check-gateway-schema-drift.mjs
       - name: Ledger and constraint tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/ledger.test.sql
       - name: WhatsApp receipt correlation SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/receipt-correlation.test.sql
       - name: WhatsApp admin test-send job SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/test-send-jobs.test.sql
+      - name: WhatsApp delivered-receipt reconciliation SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/delivered-reconciliation.test.sql
+      - name: Gateway auth migration CAS SQL tests
+        run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/whatsapp/auth-migration-cas.test.sql
       - name: Reconciliation SQL tests
         run: psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f tests/billing/reconciliation.test.sql
       - name: Auth SQL tests

@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import { compressAuthPayload, decompressAuthPayload } from "./auth-compression";
+import { AuthMigrationRunner } from "./auth-migration";
 import makeWASocket,{Browsers,DisconnectReason,fetchLatestBaileysVersion,initAuthCreds,proto,BufferJSON} from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import { classifyTestSendFailure, isNoOpenSession, isUuid, type TestSendStage } from "./test-send-rules";
@@ -17,24 +18,30 @@ async function encryptJson(v:any){return encryptJsonText(JSON.stringify(v,Buffer
 function normalizeEncryptedJson(v:any){if(typeof v!=="string")return "";let normalized=v;const q=String.fromCharCode(34);if(normalized.startsWith(q+"enc:v")&&normalized.endsWith(q)){try{normalized=JSON.parse(normalized);}catch{}}return normalized;}
 async function decryptJson(v:any){if(typeof v==="string"){const normalized=normalizeEncryptedJson(v);if(normalized.startsWith("enc:v1:")||normalized.startsWith("enc:v2:")){const parts=normalized.split(":");if(parts.length!==4)throw new Error("encrypted_session_invalid");const iv=new Uint8Array(Buffer.from(parts[2],"base64"));const data=new Uint8Array(Buffer.from(parts[3],"base64"));const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv},encKey,data);const decoded=normalized.startsWith("enc:v2:")?decompressAuthPayload(new Uint8Array(plain)):new TextDecoder().decode(plain);return JSON.parse(decoded,BufferJSON.reviver);}return decodeJson(normalized);}return decodeJson(v);}
 function isCompressedEncryptedJson(v:any){return normalizeEncryptedJson(v).startsWith("enc:v2:");}
-let authMigrationInFlight=false;
-async function migrateOneLegacyAuthValue(){
- if(!initialized||!ownsLock||authMigrationInFlight)return;
- authMigrationInFlight=true;
- try{
+// Compare-and-swap on the stored text. The old code compared against JSON.stringify(row.v)::jsonb, which the driver encodes a second time, so it could never equal the stored value.
+async function casReplaceKv(k:string,expected:any,next:string){
+ const nextJson=JSON.stringify(next);
+ const r=typeof expected==="string"
+  ?await sql`UPDATE wa_gateway_kv SET v=${nextJson}::jsonb,updated_at=now() WHERE k=${k} AND v #>> '{}' = ${expected} RETURNING k`
+  :await sql`UPDATE wa_gateway_kv SET v=${nextJson}::jsonb,updated_at=now() WHERE k=${k} AND v::text = ${JSON.stringify(expected)} RETURNING k`;
+ return r.length>0;
+}
+const authMigration=new AuthMigrationRunner({
+ async pickCandidate(excluded){
   const device=await sql`SELECT id FROM wa_gateway_devices ORDER BY created_at LIMIT 1`;
-  if(!device.length)return;
+  if(!device.length)return null;
   const id=String(device[0].id);
-  const rows=await sql`SELECT k,v FROM wa_gateway_kv WHERE k LIKE ${id+":%"} AND (v #>> '{}' LIKE 'enc:v1:%' OR v #>> '{}' LIKE '"enc:v1:%') ORDER BY pg_column_size(v) ASC LIMIT 1`;
-  if(!rows.length)return;
-  const row=rows[0];
-  const value=await decryptJson(row.v);
-  const compressed=await encryptJson(value);
-  const updated=await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(compressed)}::jsonb,updated_at=now() WHERE k=${row.k} AND v=${JSON.stringify(row.v)}::jsonb RETURNING k`;
-  if(updated.length)console.log("AUTH_COMPRESSION_MIGRATED_ONE",JSON.stringify({remainingCandidate:true}));
- }catch(err:any){
-  console.error("AUTH_COMPRESSION_MIGRATION_FAILED",JSON.stringify({name:err?.name,code:err?.code,message:String(err?.message||"unknown").slice(0,120)}));
- }finally{authMigrationInFlight=false;}
+  const rows=await sql`SELECT k,v FROM wa_gateway_kv WHERE k LIKE ${id+":%"} AND k <> ALL(${excluded}::text[]) AND (v #>> '{}' LIKE 'enc:v1:%' OR v #>> '{}' LIKE '"enc:v1:%') ORDER BY pg_column_size(v) ASC LIMIT 1`;
+  return rows.length?{k:String(rows[0].k),v:rows[0].v}:null;
+ },
+ decrypt:decryptJson,
+ encrypt:encryptJson,
+ compareAndSwap:casReplaceKv,
+ canonical:(v:any)=>JSON.stringify(v,BufferJSON.replacer),
+},(event,data)=>(event.endsWith("FAILED")||event.endsWith("QUARANTINED")?console.error:console.log)(event,JSON.stringify(data)));
+async function migrateOneLegacyAuthValue(){
+ if(!initialized||!ownsLock){console.log("AUTH_COMPRESSION_SKIPPED_NOT_READY",JSON.stringify({initialized,ownsLock}));return;}
+ await authMigration.runOnce();
 }
 const inflightDeliveries=new Set<string>();
 const sockets=new Map<string,any>(), live=new Map<string,any>(), timers=new Map<string,any>(), starts=new Map<string,Promise<any>>();
@@ -104,7 +111,7 @@ async function authState(id:string){
   await sql`UPDATE wa_gateway_devices SET creds=${JSON.stringify(await encryptJson(creds))}::jsonb WHERE id=${id}::uuid`;
  }
  const keys={
-  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(!isCompressedEncryptedJson(r.v))await sql`UPDATE wa_gateway_kv SET v=${JSON.stringify(await encryptJson(v))}::jsonb,updated_at=now() WHERE k=${r.k}`;if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
+  async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(!isCompressedEncryptedJson(r.v))await casReplaceKv(String(r.k),r.v,await encryptJson(v));if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
   async set(data:any){await sql.begin(async tx=>{for(const [type,entries] of Object.entries(data) as any)for(const [k,v] of Object.entries(entries) as any){const key=id+":"+type+":"+k;if(v==null)await tx`DELETE FROM wa_gateway_kv WHERE k=${key}`;else await tx`INSERT INTO wa_gateway_kv(k,v,updated_at) VALUES(${key},${JSON.stringify(await encryptJson(v))}::jsonb,now()) ON CONFLICT(k) DO UPDATE SET v=EXCLUDED.v,updated_at=now()`;}})}
  };
  let saveQueue=Promise.resolve();

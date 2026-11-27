@@ -3,6 +3,7 @@ import { DbService } from "../db.service";
 import type { AuthContext } from "../auth/auth.service";
 import { writeAudit } from "../common/audit";
 import { cleanIp } from "../common/ip";
+import { buildKvHealth, KV_HEALTH_SQL, KV_TABLE_SIZE_SQL, type KvTypeRow } from "./wa-kv-health";
 import { isMessageId, isRecipientAllowlisted, isUuid, maskRecipient, normalizeRecipient, parseAllowlist, validTestMessage } from "./wa-admin-util";
 import { classifyGatewayAnswer, staleTransition } from "./wa-test-job";
 
@@ -17,6 +18,14 @@ export class WhatsAppAdminService {
   fetchImpl: Fetch = realFetch;
   constructor(private readonly db: DbService) {}
 
+  /** Read-only size monitoring of the gateway session store. Sizes only; no values and no key ids. */
+  async kvHealth(ctx: AuthContext) {
+    this.staff(ctx);
+    const t = await this.db.pool.query(KV_TABLE_SIZE_SQL);
+    const row = t.rows[0] as { present: boolean; total_bytes: string | number };
+    const types = row.present ? await this.db.pool.query(KV_HEALTH_SQL) : { rows: [] };
+    return buildKvHealth(row.present, row.total_bytes, types.rows as KvTypeRow[]);
+  }
   private staff(ctx: AuthContext) {
     if (ctx.role !== "super_admin" && ctx.role !== "admin_staff") throw new ForbiddenException({ error: "forbidden" });
   }
