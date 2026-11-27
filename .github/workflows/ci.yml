@@ -139,6 +139,8 @@ jobs:
           node-version: 22
       - name: Apply migrations
         run: node scripts/migrate.mjs
+      - name: Gateway Dockerfile copies every imported module
+        run: node scripts/check-gateway-dockerfile.mjs
       - name: Gateway schema drift check
         run: node scripts/check-gateway-schema-drift.mjs
       - name: Ledger and constraint tests
