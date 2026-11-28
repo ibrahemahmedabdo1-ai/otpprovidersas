@@ -222,13 +222,20 @@ async function runAdminTestSend(jobId:string,id:string,s:any,to:string,msg:strin
  try{
   const pnJid=to+"@s.whatsapp.net";
   let recipientJid=pnJid;
+  const t0=Date.now();
   const lookup=await s.onWhatsApp(to);
+  const lookupMs=Date.now()-t0;
   if(!Array.isArray(lookup)||!lookup.some((item:any)=>item?.exists)){await finishTestJob(jobId,"failed",null,"recipient_not_registered_on_whatsapp");return;}
+  const t1=Date.now();
   const mapped=await s.signalRepository.lidMapping.getLIDForPN(pnJid).catch(()=>undefined);
+  const lidMs=Date.now()-t1;
   if(typeof mapped==="string"&&mapped.endsWith("@lid"))recipientJid=mapped;
   stage="send";
   let r:any;
-  try{r=await s.sendMessage(recipientJid,{text:msg});}
+  const t2=Date.now();
+  // Diagnostics only: stage timings and JID kind. Never logs the number, JID or message text.
+  const logTiming=()=>console.log("WA_TEST_SEND_TIMING",JSON.stringify({lookupMs,lidMs,sendMs:Date.now()-t2,jid:recipientJid.endsWith("@lid")?"lid":"pn",socketOpen:s?.ws?.isOpen??null}));
+  try{r=await s.sendMessage(recipientJid,{text:msg});logTiming();}
   catch(err:any){
    if(!isNoOpenSession(err))throw err;
    // Nothing was transmitted: refresh only this recipient's Signal session once, then retry once.
