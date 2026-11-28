@@ -27,14 +27,20 @@ export class CatalogService {
     const r = await this.db.pool.query("SELECT id, name, price_micro_usd, credit_micro_usd, active, commercially_approved, created_at FROM packages ORDER BY created_at DESC");
     return r.rows.map((p) => ({ id: p.id, name: p.name, priceMicroUsd: String(p.price_micro_usd), creditMicroUsd: String(p.credit_micro_usd), active: p.active, approved: p.commercially_approved, createdAt: p.created_at }));
   }
+  async supportPackages(c: AuthContext) {
+    if (c.role !== "support_staff" && c.role !== "admin_staff" && c.role !== "super_admin") throw new ForbiddenException({ error: "forbidden" });
+    const r = await this.db.pool.query("SELECT id, name, price_micro_usd, credit_micro_usd, active, commercially_approved, created_at FROM packages WHERE active = true AND commercially_approved = true ORDER BY price_micro_usd ASC");
+    return r.rows.map((p) => ({ id: p.id, name: p.name, priceMicroUsd: String(p.price_micro_usd), creditMicroUsd: String(p.credit_micro_usd), active: p.active, approved: p.commercially_approved, createdAt: p.created_at }));
+  }
   async createPackage(c: AuthContext, body: unknown, ip: string | null) {
     this.staff(c);
     const b = obj(body);
     const name = typeof b.name === "string" ? b.name.trim() : "";
     if (name.length < 2 || name.length > 80) bad({ name: "2-80 characters required" });
-    const price = int(b.priceUsd, "priceUsd", 1, 100000), credit = int(b.creditUsd, "creditUsd", 1, 100000);
-    const r = await this.db.pool.query("INSERT INTO packages(name, price_micro_usd, credit_micro_usd) VALUES ($1,$2,$3) RETURNING id", [name, price * 1_000_000, credit * 1_000_000]);
-    await writeAudit(this.db.pool, { actorId: c.userId, action: "package.created", subjectType: "package", subjectId: r.rows[0].id, ip, meta: { name, price, credit } });
+    const money = (v: unknown, f: string) => { if (typeof v !== "number" || !Number.isFinite(v) || v < 0.01 || v > 100000 || Math.round(v * 100) !== v * 100) bad({ [f]: "amount from 0.01 to 100000 with up to 2 decimals required" }); return Math.round(v * 1_000_000); };
+    const price = money(b.priceUsd, "priceUsd"), credit = money(b.creditUsd, "creditUsd");
+    const r = await this.db.pool.query("INSERT INTO packages(name, price_micro_usd, credit_micro_usd) VALUES ($1,$2,$3) RETURNING id", [name, price, credit]);
+    await writeAudit(this.db.pool, { actorId: c.userId, action: "package.created", subjectType: "package", subjectId: r.rows[0].id, ip, meta: { name, priceMicroUsd: price, creditMicroUsd: credit } });
     return { id: r.rows[0].id as string };
   }
   async setPackage(c: AuthContext, idRaw: string, body: unknown, ip: string | null) {
