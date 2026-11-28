@@ -57,7 +57,9 @@ export default function Pricing() {
     <>
       <div className="pagehead"><h1>Pricing and packages</h1><p>New prices and packages start inactive. Only a Super Admin can activate them, and every change is written to the audit log.</p></div>
       {msg && <Alert kind={msg.k}>{msg.t}</Alert>}
-      <h2>Packages</h2>\n      <p className="muted">Prepaid wallet credit. The number of OTPs depends on the active per-message price, destination and successful delivery; no fixed message count is promised.</p>\n      {isSuper && <button className="btn" type="button" onClick={() => void addRecommendedPackages()} disabled={pk === null}>Add the five recommended packages</button>}
+      <h2>Packages</h2>
+      <p className="muted">Prepaid wallet credit. The number of OTPs depends on the active per-message price, destination and successful delivery; no fixed message count is promised.</p>
+      {isSuper && <button className="btn" type="button" onClick={() => void addRecommendedPackages()} disabled={pk === null}>Add the five recommended packages</button>}
       <form className="row" onSubmit={addPkg}>
         <input name="name" aria-label="Package name" placeholder="Name" required maxLength={80} />
         <input name="price" aria-label="Price in USD" type="number" min={0.01} step="0.01" placeholder="Price USD" required />
@@ -68,7 +70,7 @@ export default function Pricing() {
         <div className="tablewrap"><table>
           <thead><tr><th scope="col">Name</th><th scope="col">Price</th><th scope="col">Credit</th><th scope="col">Details</th><th scope="col">Approval</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
           <tbody>{pk.map((p) => (
-            <tr key={p.id}><td>{p.name}</td><td>{usd(p.priceMicroUsd)}</td><td>{usd(p.creditMicroUsd)}</td>
+            <tr key={p.id}><td>{p.name}{p.name.toLowerCase() === "growth" && <div><span className="chip ok">Most popular</span></div>}</td><td>{usd(p.priceMicroUsd)}</td><td>{usd(p.creditMicroUsd)}</td><td>{descriptionFor(p.name)}</td><td>{p.approved ? "Approved" : "Awaiting approval"}</td>
               <td><span className={`chip ${p.active ? "ok" : "warn"}`}>{p.active ? "active" : "inactive"}</span></td>
               <td>{isSuper ? <button className="btn small" onClick={() => void run(`/v1/admin/packages/${p.id}/set`, { active: !p.active })}>{p.active ? "Deactivate" : "Approve and activate"}</button> : <span className="muted">Super Admin only</span>}</td></tr>
           ))}</tbody>
