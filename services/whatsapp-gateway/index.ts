@@ -257,8 +257,12 @@ async function runAdminTestSend(jobId:string,id:string,s:any,to:string,msg:strin
   }
   const messageId=String(r?.key?.id||"");
   if(!messageId){await finishTestJob(jobId,"unknown",null,"provider_message_id_missing");return;}
-  await recordReceipt(id,messageId,"accepted",to).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
+  // Mark the admin job accepted immediately after Baileys returns a message ID.
+  // Receipt persistence is independent: a slow DB transaction must never leave the UI
+  // stuck in "sending" after WhatsApp has already accepted the submission.
   await finishTestJob(jobId,"accepted",messageId,null);
+  console.log("WA_TEST_SEND_COMPLETED",JSON.stringify({status:"accepted",hasMessageId:true}));
+  void recordReceipt(id,messageId,"accepted",to).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
  }catch{
   const outcome=classifyTestSendFailure(stage);
   console.error("WHATSAPP_TEST_JOB_FAILED",JSON.stringify({stage,status:outcome.status}));
