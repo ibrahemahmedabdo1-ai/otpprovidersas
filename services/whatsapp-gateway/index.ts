@@ -154,6 +154,8 @@ async function start(id:string){
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
    if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   // Diagnostics only: raw status / stub code of outgoing updates. Digit runs of 7+ are masked; no ids, JIDs or text.
+   console.log("WA_MSG_UPDATE",JSON.stringify({status:it?.update?.status??null,stub:it?.update?.messageStubType??null,params:Array.isArray(it?.update?.messageStubParameters)?it.update.messageStubParameters.slice(0,3).map((x:any)=>String(x).replace(/\d{7,}/g,"#").slice(0,60)):null}));
    const status=mapBaileysMessageStatus(it?.update?.status);
    if(status)void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
   }
@@ -162,6 +164,7 @@ async function start(id:string){
   if(generations.get(id)!==token)return;
   for(const it of items||[]){
    if(!isOutgoingBaileysMessageKey(it?.key))continue;
+   console.log("WA_RECEIPT_UPDATE",JSON.stringify({keys:Object.keys(it?.receipt||{}).filter(k=>k!=="userJid")}));
    for(const status of mapBaileysReceiptTimestamps(it?.receipt)){
     void recordReceipt(id,it.key.id,status,baileysReceiptRecipient(it.key)).catch(()=>console.error("RECEIPT_PERSIST_FAILED"));
    }
