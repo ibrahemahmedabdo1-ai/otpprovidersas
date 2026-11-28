@@ -17,7 +17,7 @@ import { ProjectsService } from "./projects/projects.service";
 import { AdminController } from "./admin/admin.controller";
 import { AdminService } from "./admin/admin.service";
 import { InternalController } from "./internal.controller";
-import { CatalogController, PublicController } from "./admin/catalog.controller";
+import { CatalogController, PublicController, SupportCatalogController } from "./admin/catalog.controller";
 import { CatalogService } from "./admin/catalog.service";
 import { CustomerTicketsController, SupportTicketsController } from "./tickets/tickets.controller";
 import { TicketsService } from "./tickets/tickets.service";
@@ -38,7 +38,7 @@ import { HealthController } from "./health.controller";
 import { CONFIG } from "./tokens";
 
 @Module({
-  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController, WhatsAppAdminController],
+  controllers: [HealthController, AuthController, ProjectsController, OtpController, ResendWebhookController, WalletController, DeveloperController, AdminController, CatalogController, PublicController, InternalController, CustomerTicketsController, SupportTicketsController, WebhooksController, ConsoleStatsController, AdminStatsController, SupportTranslationController, AdminTranslationController, PreferencesController, SupportDepositsController, WhatsAppAdminController, SupportCatalogController],
   providers: [
     DbService, AuthService, MfaService, AuthGuard, ProjectsService, OtpService, LiveOtpDeliveryService, ApiKeyGuard, WalletService, AdminService, CatalogService, TicketsService, SchedulerService, WebhooksService, StatsService, TranslationService, PreferencesService, SupportDepositsService, WhatsAppAdminService,
     { provide: CONFIG, useFactory: () => loadConfig(process.env) },

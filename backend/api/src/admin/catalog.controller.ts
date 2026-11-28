@@ -35,3 +35,11 @@ export class PublicController {
   @Get("company") company() { return this.s.publicCompany(); }
   @Get("pricing") @Header("Cache-Control", "public, max-age=30, s-maxage=30") pricing() { return this.s.publicPricing(); }
 }
+
+/** Read-only package catalog for authenticated support staff. */
+@Controller("v1/support")
+@UseGuards(AuthGuard)
+export class SupportCatalogController {
+  constructor(private readonly s: CatalogService) {}
+  @Get("packages") packages(@Req() r: AuthedRequest) { return this.s.supportPackages(r.auth!); }
+}
