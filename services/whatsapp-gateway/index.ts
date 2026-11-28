@@ -26,6 +26,7 @@ async function casReplaceKv(k:string,expected:any,next:string){
   :await sql`UPDATE wa_gateway_kv SET v=${nextJson}::jsonb,updated_at=now() WHERE k=${k} AND v::text = ${JSON.stringify(expected)} RETURNING k`;
  return r.length>0;
 }
+const kvStats={getMs:0,getCalls:0,getRows:0,setMs:0,setCalls:0,setEntries:0};
 const authMigration=new AuthMigrationRunner({
  async pickCandidate(excluded){
   const device=await sql`SELECT id FROM wa_gateway_devices ORDER BY created_at LIMIT 1`;
@@ -114,6 +115,10 @@ async function authState(id:string){
   async get(type:string,ids:string[]){if(!ids.length)return{};const names=ids.map(k=>id+":"+type+":"+k);const rs=await sql`SELECT k,v FROM wa_gateway_kv WHERE k=ANY(${names}::text[])`;const out:any={};for(const r of rs){const key=String(r.k).slice((id+":"+type+":").length);let v=await decryptJson(r.v);if(!isCompressedEncryptedJson(r.v))await casReplaceKv(String(r.k),r.v,await encryptJson(v));if(type==="app-state-sync-key"&&v)v=proto.Message.AppStateSyncKeyData.create(v);out[key]=v;}return out},
   async set(data:any){await sql.begin(async tx=>{for(const [type,entries] of Object.entries(data) as any)for(const [k,v] of Object.entries(entries) as any){const key=id+":"+type+":"+k;if(v==null)await tx`DELETE FROM wa_gateway_kv WHERE k=${key}`;else await tx`INSERT INTO wa_gateway_kv(k,v,updated_at) VALUES(${key},${JSON.stringify(await encryptJson(v))}::jsonb,now()) ON CONFLICT(k) DO UPDATE SET v=EXCLUDED.v,updated_at=now()`;}})}
  };
+ // Diagnostics only: time spent in the key store (counts and ms; never keys, values or numbers).
+ const __get=keys.get.bind(keys),__set=keys.set.bind(keys);
+ keys.get=async(type:string,ids:string[])=>{const t=Date.now();try{return await __get(type,ids);}finally{kvStats.getMs+=Date.now()-t;kvStats.getCalls++;kvStats.getRows+=ids.length;}};
+ keys.set=async(data:any)=>{const t=Date.now();try{return await __set(data);}finally{kvStats.setMs+=Date.now()-t;kvStats.setCalls++;for(const e of Object.values(data) as any)kvStats.setEntries+=Object.keys(e||{}).length;}};
  let saveQueue=Promise.resolve();
  const save=async()=>{
   const snapshot=await encryptJson(creds);
@@ -222,6 +227,7 @@ async function runAdminTestSend(jobId:string,id:string,s:any,to:string,msg:strin
  try{
   const pnJid=to+"@s.whatsapp.net";
   let recipientJid=pnJid;
+  Object.assign(kvStats,{getMs:0,getCalls:0,getRows:0,setMs:0,setCalls:0,setEntries:0});
   const t0=Date.now();
   const lookup=await s.onWhatsApp(to);
   const lookupMs=Date.now()-t0;
@@ -234,7 +240,7 @@ async function runAdminTestSend(jobId:string,id:string,s:any,to:string,msg:strin
   let r:any;
   const t2=Date.now();
   // Diagnostics only: stage timings and JID kind. Never logs the number, JID or message text.
-  const logTiming=()=>console.log("WA_TEST_SEND_TIMING",JSON.stringify({lookupMs,lidMs,sendMs:Date.now()-t2,jid:recipientJid.endsWith("@lid")?"lid":"pn",socketOpen:s?.ws?.isOpen??null}));
+  const logTiming=()=>console.log("WA_TEST_SEND_TIMING",JSON.stringify({lookupMs,lidMs,sendMs:Date.now()-t2,kv:{...kvStats},jid:recipientJid.endsWith("@lid")?"lid":"pn",socketOpen:s?.ws?.isOpen??null}));
   try{r=await s.sendMessage(recipientJid,{text:msg});logTiming();}
   catch(err:any){
    if(!isNoOpenSession(err))throw err;
