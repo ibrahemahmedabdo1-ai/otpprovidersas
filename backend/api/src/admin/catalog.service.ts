@@ -37,7 +37,7 @@ export class CatalogService {
     const b = obj(body);
     const name = typeof b.name === "string" ? b.name.trim() : "";
     if (name.length < 2 || name.length > 80) bad({ name: "2-80 characters required" });
-    const money = (v: unknown, f: string) => { if (typeof v !== "number" || !Number.isFinite(v) || v < 0.01 || v > 100000 || Math.round(v * 100) !== v * 100) bad({ [f]: "amount from 0.01 to 100000 with up to 2 decimals required" }); return Math.round(v * 1_000_000); };
+    const money = (v: unknown, f: string) => { if (typeof v !== "number" || !Number.isFinite(v) || v < 0.01 || v > 100000 || Math.round(v * 100) !== v * 100) bad({ [f]: "amount from 0.01 to 100000 with up to 2 decimals required" }); return Math.round((v as number) * 1_000_000); };
     const price = money(b.priceUsd, "priceUsd"), credit = money(b.creditUsd, "creditUsd");
     const r = await this.db.pool.query("INSERT INTO packages(name, price_micro_usd, credit_micro_usd) VALUES ($1,$2,$3) RETURNING id", [name, price, credit]);
     await writeAudit(this.db.pool, { actorId: c.userId, action: "package.created", subjectType: "package", subjectId: r.rows[0].id, ip, meta: { name, priceMicroUsd: price, creditMicroUsd: credit } });
