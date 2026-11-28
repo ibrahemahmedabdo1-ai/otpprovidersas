@@ -59,6 +59,18 @@ export default function WhatsAppPage() {
     if (j.status === "accepted") setMsg("Accepted by WhatsApp (message " + (j.messageId ?? "unknown") + "). Accepted is not delivered: check receipts below.");
     else if (j.status === "failed" || j.status === "unknown") setErr(ERR[j.error ?? ""] ?? (j.status === "unknown" ? "The outcome is unknown. Do not resend; check the phone and receipts." : "The test message was not sent."));
   }
+  async function watchReceipts(messageId: string) {
+    // Poll receipts briefly after acceptance; "accepted" is not "delivered".
+    for (let i = 0; i < 15 && alive.current; i++) {
+      const r = await api<Receipt>("GET", "/v1/admin/whatsapp/receipts/" + encodeURIComponent(messageId));
+      if (!alive.current) return;
+      if (!r.ok || !r.data) return;
+      setRc(r.data);
+      if (r.data.events.some((e) => ["delivered", "read", "played"].includes(e.status))) return;
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    if (alive.current) setMsg("Accepted by WhatsApp, but no delivery confirmation has arrived yet. Do not resend; keep customer sending disabled.");
+  }
   async function follow(jobId: string) {
     for (let i = 0; i < 45 && alive.current; i++) {
       const r = await api<Job>("GET", "/v1/admin/whatsapp/test-jobs/" + encodeURIComponent(jobId));
@@ -67,7 +79,7 @@ export default function WhatsAppPage() {
         setJob(r.data);
         if (r.data.status === "accepted" || r.data.status === "failed" || r.data.status === "unknown") {
           requestIdRef.current = null; show(r.data);
-          if (r.data.status === "accepted" && r.data.messageId) void check(r.data.messageId);
+          if (r.data.status === "accepted" && r.data.messageId) void watchReceipts(r.data.messageId);
           return;
         }
       }
